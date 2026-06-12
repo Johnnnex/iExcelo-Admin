@@ -180,13 +180,17 @@ export default function Messages() {
     page,
     loadingFlags,
     statusFilter,
+    search,
     actingId,
     setStatusFilter,
     setPage,
+    setSearch,
     fetchFlags,
     reviewFlag,
     dismissFlag,
   } = useAdminMessagesStore();
+
+  const [searchInput, setSearchInput] = useState(search);
   const { canWrite } = useAdminAuthStore();
 
   const [modal, setModal] = useState<ModalState>(null);
@@ -198,7 +202,6 @@ export default function Messages() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const totalPages = Math.ceil(total / 20);
 
   const columns: Column<IAdminMessageFlag>[] = [
     {
@@ -297,8 +300,8 @@ export default function Messages() {
   ];
 
   return (
-    <section className="xl:px-[2rem] px-[.875rem] py-[1.25rem]">
-      <div className="flex mb-6 items-start justify-between gap-4">
+    <div className="flex flex-col gap-6">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#101828]">Messages</h1>
           <p className="text-sm text-[#667085] mt-1">
@@ -333,12 +336,19 @@ export default function Messages() {
           loading={loadingFlags}
           keyExtractor={(f) => f.id}
           emptyMessage="No flagged messages found."
-          pagination={totalPages > 1}
+          shouldNotHaveBorder
+          searchProps={{
+            value: searchInput,
+            onChange: setSearchInput,
+            onSearch: () => setSearch(searchInput),
+            placeholder: "Search messages...",
+          }}
+          pagination
           metaData={{
-            currentPage: page,
-            endPage: totalPages,
+            currentPage: (page - 1) * 20 + 1,
+            endPage: total > page * 20 ? page * 20 + 1 : (page - 1) * 20 + 1,
             totalRecords: total,
-            onPageChange: (p) => setPage(p),
+            onPageChange: (skip) => setPage(Math.floor(skip / 20) + 1),
           }}
         />
       </div>
@@ -349,6 +359,6 @@ export default function Messages() {
       {modal?.type === "suspend" && (
         <SuspendModal flag={modal.item} onClose={() => setModal(null)} />
       )}
-    </section>
+    </div>
   );
 }

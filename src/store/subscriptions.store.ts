@@ -4,112 +4,250 @@ import { create } from "zustand";
 import { api } from "@/src/lib/api";
 import { handleAxiosError } from "@/src/utils";
 import { toast } from "sonner";
-import { IAdminSubscription, IExamType } from "@/src/types";
+import { IAdminSubscription, IAdminSubscriptionPlan } from "@/src/types";
 
-interface SubscriptionsState {
-  subscriptions: IAdminSubscription[];
-  subscriptionsTotal: number;
-  subscriptionsPage: number;
-  loadingSubscriptions: boolean;
-
-  examTypes: IExamType[];
-  loadingExamTypes: boolean;
-
-  filters: {
-    status: string;
-    examTypeId: string;
-    search: string;
-  };
-
-  setFilters: (f: Partial<SubscriptionsState["filters"]>) => void;
-  fetchSubscriptions: (page?: number) => Promise<void>;
-  fetchExamTypes: () => Promise<void>;
-  overrideStatus: (id: string, status: string, endDate?: string) => Promise<void>;
-  cancelSubscription: (id: string) => Promise<void>;
+interface TabState {
+  items: IAdminSubscription[];
+  cursors: (string | null)[];
+  cursorPage: number;
+  hasMore: boolean;
+  loading: boolean;
+  searchTerm: string;
 }
 
-export const useAdminSubscriptionsStore = create<SubscriptionsState>()((set, get) => ({
-  subscriptions: [],
-  subscriptionsTotal: 0,
-  subscriptionsPage: 1,
-  loadingSubscriptions: false,
+const defaultTabState = (): TabState => ({
+  items: [],
+  cursors: [null],
+  cursorPage: 1,
+  hasMore: false,
+  loading: false,
+  searchTerm: "",
+});
 
-  examTypes: [],
-  loadingExamTypes: false,
+interface SubscriptionsState {
+  studentSubs: TabState;
+  sponsorSubs: TabState;
 
-  filters: { status: "", examTypeId: "", search: "" },
+  plans: IAdminSubscriptionPlan[];
+  loadingPlans: boolean;
+  savingPlan: boolean;
 
-  setFilters: (f) =>
-    set((s) => ({ filters: { ...s.filters, ...f } })),
+  setStudentSearch: (term: string) => void;
+  fetchStudentSubs: (page?: number) => Promise<void>;
 
-  fetchSubscriptions: async (page = 1) => {
-    set({ loadingSubscriptions: true, subscriptionsPage: page });
-    try {
-      const { filters } = get();
-      const params = new URLSearchParams({ page: String(page), limit: "20" });
-      if (filters.status) params.set("status", filters.status);
-      if (filters.examTypeId) params.set("examTypeId", filters.examTypeId);
-      if (filters.search) params.set("search", filters.search);
+  setSponsorSearch: (term: string) => void;
+  fetchSponsorSubs: (page?: number) => Promise<void>;
 
-      const res = await api.get<{
-        data: { items: IAdminSubscription[]; total: number; page: number };
-      }>(`/admin/subscriptions?${params.toString()}`);
-      set({
-        subscriptions: res.data.data.items,
-        subscriptionsTotal: res.data.data.total,
-        subscriptionsPage: res.data.data.page,
-      });
-    } catch (error) {
-      handleAxiosError(error, "Failed to load subscriptions");
-    } finally {
-      set({ loadingSubscriptions: false });
-    }
-  },
+  cancelSubscription: (id: string, type: "student" | "sponsor") => Promise<void>;
 
-  fetchExamTypes: async () => {
-    set({ loadingExamTypes: true });
-    try {
-      const res = await api.get<{ data: IExamType[] }>(
-        "/admin/exam-revision/exam-types",
-      );
-      set({ examTypes: res.data.data });
-    } catch {
-      // non-critical — filter just won't have exam type options
-    } finally {
-      set({ loadingExamTypes: false });
-    }
-  },
+  fetchPlans: () => Promise<void>;
+  createPlan: (data: {
+    examTypeId: string;
+    name: string;
+    description?: string;
+    durationDays: number;
+    sortOrder?: number;
+    stripeProductId?: string;
+  }) => Promise<void>;
+  updatePlan: (
+    id: string,
+    data: {
+      name?: string;
+      description?: string;
+      durationDays?: number;
+      sortOrder?: number;
+      stripeProductId?: string;
+      isActive?: boolean;
+    },
+  ) => Promise<void>;
+  deletePlan: (id: string) => Promise<void>;
+}
 
-  overrideStatus: async (id, status, endDate) => {
-    try {
-      await api.patch(`/admin/subscriptions/${id}/status`, {
-        status,
-        ...(endDate && { endDate }),
-      });
-      toast.success("Subscription status updated");
+export const useAdminSubscriptionsStore = create<SubscriptionsState>()(
+  (set, get) => ({
+    studentSubs: defaultTabState(),
+    sponsorSubs: defaultTabState(),
+    plans: [],
+    loadingPlans: false,
+    savingPlan: false,
+
+    // ─── Student Subs ──────────────────────────────────────────────────────
+
+    setStudentSearch: (term) =>
       set((s) => ({
-        subscriptions: s.subscriptions.map((sub) =>
-          sub.id === id ? { ...sub, status } : sub,
-        ),
-      }));
-    } catch (error) {
-      handleAxiosError(error, "Failed to update status");
-    }
-  },
+        studentSubs: {
+          ...s.studentSubs,
+          searchTerm: term,
+          cursors: [null],
+          cursorPage: 1,
+        },
+      })),
 
-  cancelSubscription: async (id) => {
-    try {
-      await api.patch(`/admin/subscriptions/${id}/cancel`);
-      toast.success("Subscription cancelled");
+    fetchStudentSubs: async (page = 1) => {
+      set((s) => ({ studentSubs: { ...s.studentSubs, loading: true } }));
+      try {
+        const { studentSubs } = get();
+        const params = new URLSearchParams({ limit: "50", type: "student" });
+        const cursor = studentSubs.cursors[page - 1];
+        if (cursor) params.set("cursor", cursor);
+        if (studentSubs.searchTerm) params.set("search", studentSubs.searchTerm);
+
+        const res = await api.get<{
+          data: { items: IAdminSubscription[]; nextCursor: string | null; hasMore: boolean };
+        }>(`/admin/subscriptions?${params.toString()}`);
+
+        const { items, nextCursor, hasMore } = res.data.data;
+
+        set((s) => {
+          const newCursors = [...s.studentSubs.cursors];
+          if (nextCursor && newCursors.length <= page) newCursors.push(nextCursor);
+          return {
+            studentSubs: {
+              ...s.studentSubs,
+              items,
+              hasMore,
+              cursors: newCursors,
+              cursorPage: page,
+              loading: false,
+            },
+          };
+        });
+      } catch (error) {
+        handleAxiosError(error, "Failed to load student subscriptions");
+        set((s) => ({ studentSubs: { ...s.studentSubs, loading: false } }));
+      }
+    },
+
+    // ─── Sponsor Subs ──────────────────────────────────────────────────────
+
+    setSponsorSearch: (term) =>
       set((s) => ({
-        subscriptions: s.subscriptions.map((sub) =>
-          sub.id === id
-            ? { ...sub, status: "cancelled", cancelledAt: new Date().toISOString() }
-            : sub,
-        ),
-      }));
-    } catch (error) {
-      handleAxiosError(error, "Failed to cancel subscription");
-    }
-  },
-}));
+        sponsorSubs: {
+          ...s.sponsorSubs,
+          searchTerm: term,
+          cursors: [null],
+          cursorPage: 1,
+        },
+      })),
+
+    fetchSponsorSubs: async (page = 1) => {
+      set((s) => ({ sponsorSubs: { ...s.sponsorSubs, loading: true } }));
+      try {
+        const { sponsorSubs } = get();
+        const params = new URLSearchParams({ limit: "50", type: "sponsor" });
+        const cursor = sponsorSubs.cursors[page - 1];
+        if (cursor) params.set("cursor", cursor);
+        if (sponsorSubs.searchTerm) params.set("search", sponsorSubs.searchTerm);
+
+        const res = await api.get<{
+          data: { items: IAdminSubscription[]; nextCursor: string | null; hasMore: boolean };
+        }>(`/admin/subscriptions?${params.toString()}`);
+
+        const { items, nextCursor, hasMore } = res.data.data;
+
+        set((s) => {
+          const newCursors = [...s.sponsorSubs.cursors];
+          if (nextCursor && newCursors.length <= page) newCursors.push(nextCursor);
+          return {
+            sponsorSubs: {
+              ...s.sponsorSubs,
+              items,
+              hasMore,
+              cursors: newCursors,
+              cursorPage: page,
+              loading: false,
+            },
+          };
+        });
+      } catch (error) {
+        handleAxiosError(error, "Failed to load sponsor subscriptions");
+        set((s) => ({ sponsorSubs: { ...s.sponsorSubs, loading: false } }));
+      }
+    },
+
+    // ─── Cancel ────────────────────────────────────────────────────────────
+
+    cancelSubscription: async (id, type) => {
+      try {
+        await api.patch(`/admin/subscriptions/${id}/cancel`);
+        toast.success("Subscription cancelled");
+        const key = type === "student" ? "studentSubs" : "sponsorSubs";
+        set((s) => ({
+          [key]: {
+            ...s[key],
+            items: (s[key] as TabState).items.map((sub) =>
+              sub.id === id
+                ? { ...sub, status: "cancelled", cancelledAt: new Date().toISOString() }
+                : sub,
+            ),
+          },
+        }));
+      } catch (error) {
+        handleAxiosError(error, "Failed to cancel subscription");
+      }
+    },
+
+    // ─── Plans ─────────────────────────────────────────────────────────────
+
+    fetchPlans: async () => {
+      set({ loadingPlans: true });
+      try {
+        const res = await api.get<{ data: IAdminSubscriptionPlan[] }>(
+          "/admin/subscriptions/plans",
+        );
+        set({ plans: res.data.data });
+      } catch (error) {
+        handleAxiosError(error, "Failed to load plans");
+      } finally {
+        set({ loadingPlans: false });
+      }
+    },
+
+    createPlan: async (data) => {
+      set({ savingPlan: true });
+      try {
+        const res = await api.post<{ data: IAdminSubscriptionPlan }>(
+          "/admin/subscriptions/plans",
+          data,
+        );
+        toast.success("Plan created");
+        set((s) => ({ plans: [...s.plans, res.data.data] }));
+      } catch (error) {
+        handleAxiosError(error, "Failed to create plan");
+        throw error;
+      } finally {
+        set({ savingPlan: false });
+      }
+    },
+
+    updatePlan: async (id, data) => {
+      set({ savingPlan: true });
+      try {
+        const res = await api.patch<{ data: IAdminSubscriptionPlan }>(
+          `/admin/subscriptions/plans/${id}`,
+          data,
+        );
+        toast.success("Plan updated");
+        set((s) => ({
+          plans: s.plans.map((p) => (p.id === id ? res.data.data : p)),
+        }));
+      } catch (error) {
+        handleAxiosError(error, "Failed to update plan");
+        throw error;
+      } finally {
+        set({ savingPlan: false });
+      }
+    },
+
+    deletePlan: async (id) => {
+      try {
+        await api.delete(`/admin/subscriptions/plans/${id}`);
+        toast.success("Plan deleted");
+        set((s) => ({ plans: s.plans.filter((p) => p.id !== id) }));
+      } catch (error) {
+        handleAxiosError(error, "Failed to delete plan");
+        throw error;
+      }
+    },
+  }),
+);

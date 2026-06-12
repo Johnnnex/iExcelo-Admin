@@ -8,13 +8,15 @@ import { IAdminStudentListItem } from "@/src/types";
 
 interface StudentsState {
   students: IAdminStudentListItem[];
-  studentsTotal: number;
-  studentsPage: number;
+  cursors: (string | null)[];
+  cursorPage: number;
+  hasMore: boolean;
   loadingStudents: boolean;
   searchTerm: string;
 
   setSearchTerm: (term: string) => void;
   fetchStudents: (page?: number) => Promise<void>;
+  resetStudentPassword: (userId: string) => Promise<void>;
   deactivateStudent: (userId: string) => Promise<void>;
   reactivateStudent: (userId: string) => Promise<void>;
   suspendStudent: (userId: string, suspendedUntil: string) => Promise<void>;
@@ -23,31 +25,49 @@ interface StudentsState {
 
 export const useAdminStudentsStore = create<StudentsState>()((set, get) => ({
   students: [],
-  studentsTotal: 0,
-  studentsPage: 1,
+  cursors: [null],
+  cursorPage: 1,
+  hasMore: false,
   loadingStudents: false,
   searchTerm: "",
 
-  setSearchTerm: (term) => set({ searchTerm: term }),
+  setSearchTerm: (term) => set({ searchTerm: term, cursors: [null], cursorPage: 1 }),
 
   fetchStudents: async (page = 1) => {
-    set({ loadingStudents: true, studentsPage: page });
+    set({ loadingStudents: true });
     try {
-      const { searchTerm } = get();
-      const params = new URLSearchParams({ page: String(page), limit: "20" });
+      const { searchTerm, cursors } = get();
+      const params = new URLSearchParams({ limit: "50" });
+      const cursor = cursors[page - 1];
+      if (cursor) params.set("cursor", cursor);
       if (searchTerm) params.set("search", searchTerm);
+
       const res = await api.get<{
-        data: { items: IAdminStudentListItem[]; total: number; page: number };
+        data: { items: IAdminStudentListItem[]; nextCursor: string | null; hasMore: boolean };
       }>(`/admin/students?${params.toString()}`);
-      set({
-        students: res.data.data.items,
-        studentsTotal: res.data.data.total,
-        studentsPage: res.data.data.page,
+
+      const { items, nextCursor, hasMore } = res.data.data;
+
+      set((s) => {
+        const newCursors = [...s.cursors];
+        if (nextCursor && newCursors.length <= page) {
+          newCursors.push(nextCursor);
+        }
+        return { students: items, hasMore, cursors: newCursors, cursorPage: page };
       });
     } catch (error) {
       handleAxiosError(error, "Failed to load students");
     } finally {
       set({ loadingStudents: false });
+    }
+  },
+
+  resetStudentPassword: async (userId) => {
+    try {
+      await api.patch(`/admin/students/${userId}/reset-password`);
+      toast.success("Password reset email sent to student");
+    } catch (error) {
+      handleAxiosError(error, "Failed to send password reset email");
     }
   },
 

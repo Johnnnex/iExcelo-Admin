@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Icon } from "@iconify/react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAdminAuthStore } from "@/src/store";
 
@@ -46,11 +47,26 @@ export function AdminProfileDropdown({ name, email, initials }: AdminProfileDrop
       {isOpen && (
         <div className="absolute right-0 top-12 w-64 bg-white rounded-xl shadow-lg border border-gray-100 py-3 z-50">
           <div className="px-4 pb-3 border-b border-gray-100">
-            <p className="font-semibold text-gray-900">{name}</p>
-            <p className="text-sm text-gray-500">{email}</p>
-            {isSuper && (
-              <span className="inline-block mt-1 text-xs text-[#007FFF] font-semibold">Super Admin</span>
-            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-semibold text-gray-900">{name}</p>
+              {isSuper && (
+                <span className="text-[0.65rem] px-2 py-0.5 rounded-full bg-[#E5E8F8] text-[#007FFF] font-semibold">
+                  Super Admin
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 mt-0.5">{email}</p>
+          </div>
+
+          <div className="py-2">
+            <Link
+              href="/profile"
+              className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+              onClick={() => setIsOpen(false)}
+            >
+              <Icon icon="hugeicons:user" className="w-5 h-5" />
+              <span className="text-sm">Profile</span>
+            </Link>
           </div>
 
           <div className="border-t border-gray-100 pt-2">

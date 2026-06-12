@@ -10,7 +10,7 @@ import { useAdminAuthStore } from "@/src/store/auth.store";
 import { AdminModule } from "@/src/types";
 import { InputField } from "@/src/components/molecules/InputField";
 import { Button } from "@/src/components/atoms/Button";
-import { topicSchema, TopicValues } from "@/src/schemas/exam-revision.schema";
+import { CARD_SHADOW } from "@/src/utils";
 import * as yup from "yup";
 
 const editSchema = yup.object({
@@ -58,73 +58,80 @@ export default function EditTopicPage() {
 
   if (loadingTopics && !topic) {
     return (
-      <div className="xl:px-[2rem] px-[.875rem] py-[1.25rem]">
-        <div className="h-8 w-48 bg-gray-100 rounded animate-pulse mb-6" />
-        <div className="flex flex-col gap-4 max-w-3xl">
-          {[1, 2, 3].map((i) => <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />)}
+      <div className="flex items-start justify-center">
+        <div className="bg-white rounded-2xl p-8 w-full max-w-2xl" style={{ boxShadow: CARD_SHADOW }}>
+          <div className="h-8 w-48 bg-gray-100 rounded animate-pulse mb-6" />
+          <div className="flex flex-col gap-4">
+            {[1, 2, 3].map((i) => <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />)}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="xl:px-[2rem] px-[.875rem] py-[1.25rem] max-w-3xl">
-      <button
-        onClick={() => router.back()}
-        className="flex items-center gap-2 text-sm text-[#667085] hover:text-[#344054] mb-6 transition-colors"
+    <div className="flex items-start justify-center">
+      <div
+        className="bg-white rounded-2xl p-8 w-full max-w-2xl"
+        style={{ boxShadow: CARD_SHADOW }}
       >
-        <Icon icon="hugeicons:arrow-left-01" width={16} />
-        Back to Topics
-      </button>
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-2 text-sm text-[#667085] hover:text-[#344054] mb-6 transition-colors"
+        >
+          <Icon icon="hugeicons:arrow-left-01" width={16} />
+          Back to Topics
+        </button>
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#101828]">Edit Topic</h1>
-        {topic?.subject && (
-          <p className="text-sm text-[#667085] mt-1">Subject: {topic.subject.name}</p>
-        )}
-      </div>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-        <Controller
-          name="name"
-          control={control}
-          render={({ field }) => (
-            <InputField
-              {...field}
-              label="Topic Name"
-              placeholder="e.g. Differentiation"
-              error={errors.name?.message}
-              onChange={(e) => field.onChange(e.target.value)}
-            />
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-[#101828]">Edit Topic</h1>
+          {topic?.subject && (
+            <p className="text-sm text-[#667085] mt-1">Subject: {topic.subject.name}</p>
           )}
-        />
-        <Controller
-          name="content"
-          control={control}
-          render={({ field }) => (
-            <InputField
-              {...field}
-              type="rich-text"
-              label="Content"
-              value={field.value ?? ""}
-              richTextProps={{ maxHeight: "500px" }}
-              onChange={(e) => field.onChange(e.target.value)}
-            />
-          )}
-        />
-        <div className="flex gap-3 pt-2">
-          <Button
-            type="button"
-            onClick={() => router.back()}
-            className="flex-1 !bg-white !text-[#344054] border border-[#D0D5DD]"
-          >
-            Cancel
-          </Button>
-          <Button type="submit" loading={isSubmitting} className="flex-1">
-            Save Changes
-          </Button>
         </div>
-      </form>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+          <Controller
+            name="name"
+            control={control}
+            render={({ field }) => (
+              <InputField
+                {...field}
+                label="Topic Name"
+                placeholder="e.g. Differentiation"
+                error={errors.name?.message}
+                onChange={(e) => field.onChange(e.target.value)}
+              />
+            )}
+          />
+          <Controller
+            name="content"
+            control={control}
+            render={({ field }) => (
+              <InputField
+                {...field}
+                type="rich-text"
+                label="Content"
+                value={field.value ?? ""}
+                richTextProps={{ minHeight: "400px" }}
+                onChange={(e) => field.onChange(e.target.value)}
+              />
+            )}
+          />
+          <div className="flex gap-3 pt-2 justify-end">
+            <Button
+              type="button"
+              onClick={() => router.back()}
+              className="!bg-white !text-[#344054] border border-[#D0D5DD]"
+            >
+              Cancel
+            </Button>
+            <Button type="submit" loading={isSubmitting}>
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

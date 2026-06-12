@@ -89,8 +89,7 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
       category: editQuestion?.category ?? "objectives",
       difficulty: editQuestion?.difficulty ?? "medium",
       marks: editQuestion?.marks ?? 1,
-      explanationShort: editQuestion?.explanationShort ?? "",
-      explanationLong: editQuestion?.explanationLong ?? "",
+      explanation: editQuestion?.explanation ?? "",
       topicId: editQuestion?.topicId ?? "",
       passageId: editQuestion?.passageId ?? "",
       correctAnswerText: typeof editQuestion?.correctAnswer === "string"
@@ -134,16 +133,16 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
     // Load topics + passages for this ETS
     if (etsId) {
       api
-        .get<{ data: ITopic[] }>(
-          `/admin/exam-revision/topics?subjectId=${selectedSubjectId}`,
+        .get<{ data: { items: ITopic[] } }>(
+          `/admin/exam-revision/topics?subjectId=${selectedSubjectId}&limit=200`,
         )
-        .then((res) => setTopics(res.data.data))
+        .then((res) => setTopics(res.data.data.items ?? []))
         .catch(() => {});
       api
-        .get<{ data: IPassage[] }>(
-          `/admin/exam-revision/passages?examTypeSubjectId=${etsId}`,
+        .get<{ data: { items: IPassage[] } }>(
+          `/admin/exam-revision/passages?examTypeSubjectId=${etsId}&limit=200`,
         )
-        .then((res) => setPassages(res.data.data))
+        .then((res) => setPassages(res.data.data.items ?? []))
         .catch(() => {});
     }
   }, [selectedExamTypeId, selectedSubjectId, allEts, setValue]);
@@ -251,8 +250,7 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
         marks: data.marks ?? 1,
         options: hasOptions ? options : data.type === "matching" ? null : null,
         correctAnswer,
-        explanationShort: data.explanationShort || null,
-        explanationLong: data.explanationLong || null,
+        explanation: data.explanation || null,
         topicId: data.topicId || null,
         passageId: data.passageId || null,
       };
@@ -591,28 +589,16 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
         <div className="bg-white rounded-2xl p-6 flex flex-col gap-4" style={{ boxShadow: CARD_SHADOW }}>
           <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">Explanation</p>
           <Controller
-            name="explanationShort"
-            control={control}
-            render={({ field }) => (
-              <InputField
-                {...field}
-                label="Short Explanation (1–2 sentences)"
-                placeholder="Brief explanation shown immediately after answer..."
-                value={field.value ?? ""}
-                onChange={(e) => field.onChange(e.target.value)}
-              />
-            )}
-          />
-          <Controller
-            name="explanationLong"
+            name="explanation"
             control={control}
             render={({ field }) => (
               <InputField
                 {...field}
                 type="rich-text"
-                label="Full Explanation"
+                label="Explanation"
+                placeholder="Explain the correct answer (Markdown + LaTeX supported)..."
                 value={field.value ?? ""}
-                richTextProps={{ maxHeight: "300px" }}
+                richTextProps={{ maxHeight: "400px" }}
                 onChange={(e) => field.onChange(e.target.value)}
               />
             )}
@@ -659,7 +645,7 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 pb-8">
+        <div className="flex justify-end gap-3 pb-8">
           <Button
             type="button"
             onClick={() => router.push("/exam-revision")}

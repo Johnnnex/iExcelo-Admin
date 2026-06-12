@@ -1,14 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useForm, Controller, SubmitHandler } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import * as yup from "yup";
+import { useRouter } from "next/navigation";
 import { Icon } from "@iconify/react";
-import {
-  useAdminBulkEmailsStore,
-  CampaignFormData,
-} from "@/src/store/bulk-emails.store";
+import { useAdminBulkEmailsStore } from "@/src/store/bulk-emails.store";
 import { useAdminAuthStore } from "@/src/store/auth.store";
 import {
   AdminModule,
@@ -46,161 +41,89 @@ const STATUS_LABEL: Record<CampaignStatus, string> = {
   failed: "Failed",
 };
 
-// ─── Schema ────────────────────────────────────────────────────────────────────
+// ─── Edit Modal (TipTap editor inline) ────────────────────────────────────────
 
-const campaignSchema = yup.object({
-  name: yup.string().required("Name is required"),
-  subject: yup.string().required("Subject is required"),
-  content: yup.string().required("Content is required"),
-  targetAudience: yup
-    .string()
-    .oneOf(["all", "students", "sponsors", "affiliates"] as const)
-    .required("Target audience is required"),
-});
-
-type FormValues = yup.InferType<typeof campaignSchema>;
-
-// ─── Campaign Form Modal ────────────────────────────────────────────────────────
-
-function CampaignModal({
-  editItem,
+function EditModal({
+  item,
   onClose,
 }: {
-  editItem?: IAdminCampaign;
+  item: IAdminCampaign;
   onClose: () => void;
 }) {
-  const { createCampaign, updateCampaign } = useAdminBulkEmailsStore();
-  const isEdit = !!editItem;
+  const { updateCampaign, savingCampaign } = useAdminBulkEmailsStore();
+  const [name, setName] = useState(item.name);
+  const [subject, setSubject] = useState(item.subject);
+  const [audience, setAudience] = useState<CampaignTargetAudience>(item.targetAudience);
+  const [content, setContent] = useState(item.content);
 
-  const { handleSubmit, control, formState: { errors, isSubmitting } } =
-    useForm<FormValues>({
-      resolver: yupResolver(campaignSchema),
-      defaultValues: {
-        name: editItem?.name ?? "",
-        subject: editItem?.subject ?? "",
-        content: editItem?.content ?? "",
-        targetAudience: editItem?.targetAudience ?? "all",
-      },
-    });
-
-  const onSubmit: SubmitHandler<FormValues> = async (values) => {
-    const data: CampaignFormData = {
-      name: values.name,
-      subject: values.subject,
-      content: values.content,
-      targetAudience: values.targetAudience as CampaignTargetAudience,
-    };
-    if (isEdit) {
-      await updateCampaign(editItem.id, data, onClose);
-    } else {
-      await createCampaign(data, onClose);
-    }
+  const handle = async () => {
+    const ok = await updateCampaign(item.id, { name, subject, targetAudience: audience, content });
+    if (ok) onClose();
   };
 
   return (
-    <Modal isOpen onClose={onClose} className="rounded-2xl w-full max-w-lg">
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="flex items-center justify-between p-6 border-b border-[#E4E7EC]">
-          <p className="font-semibold text-[#101828]">
-            {isEdit ? "Edit Campaign" : "New Campaign"}
-          </p>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#F2F4F7]">
-            <Icon icon="hugeicons:cancel-01" className="w-5 h-5 text-[#667085]" />
-          </button>
-        </div>
+    <Modal isOpen onClose={onClose} className="rounded-2xl w-full max-w-2xl">
+      <div className="flex items-center justify-between p-6 border-b border-[#E4E7EC]">
+        <p className="font-semibold text-[#101828]">Edit Campaign</p>
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#F2F4F7]">
+          <Icon icon="hugeicons:cancel-01" className="w-5 h-5 text-[#667085]" />
+        </button>
+      </div>
 
-        <div className="p-6 flex flex-col gap-4 max-h-[65vh] overflow-y-auto">
-          <Controller
-            name="name"
-            control={control}
-            render={({ field }) => (
-              <InputField
-                label="Campaign Name"
-                placeholder="e.g. January Newsletter"
-                error={errors.name?.message}
-                value={field.value}
-                onChange={(e) => field.onChange(e.target.value)}
-                onBlur={field.onBlur}
-              />
-            )}
-          />
-          <Controller
-            name="subject"
-            control={control}
-            render={({ field }) => (
-              <InputField
-                label="Email Subject"
-                placeholder="e.g. Get ready for your exams!"
-                error={errors.subject?.message}
-                value={field.value}
-                onChange={(e) => field.onChange(e.target.value)}
-                onBlur={field.onBlur}
-              />
-            )}
-          />
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-[#344054]">Target Audience</label>
-            <Controller
-              name="targetAudience"
-              control={control}
-              render={({ field }) => (
-                <select
-                  value={field.value}
-                  onChange={(e) => field.onChange(e.target.value)}
-                  onBlur={field.onBlur}
-                  className="px-3 py-2 border border-[#D0D5DD] rounded-lg text-sm outline-none focus:border-[#007FFF]"
-                >
-                  {AUDIENCE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-            />
-            {errors.targetAudience && (
-              <p className="text-xs text-[#D42620]">{errors.targetAudience.message}</p>
-            )}
-          </div>
-          <Controller
-            name="content"
-            control={control}
-            render={({ field }) => (
-              <InputField
-                label="Email Body (HTML or plain text)"
-                type="textarea"
-                placeholder="<p>Your message here...</p>"
-                error={errors.content?.message}
-                value={field.value}
-                onChange={(e) => field.onChange(e.target.value)}
-                onBlur={field.onBlur}
-              />
-            )}
-          />
+      <div className="p-6 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
+        <InputField
+          label="Campaign Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. January Newsletter"
+        />
+        <InputField
+          label="Email Subject"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          placeholder="e.g. Get ready for your exams!"
+        />
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-[#344054]">Target Audience</label>
+          <select
+            value={audience}
+            onChange={(e) => setAudience(e.target.value as CampaignTargetAudience)}
+            className="px-3 py-2 border border-[#D0D5DD] rounded-lg text-sm outline-none focus:border-[#007FFF]"
+          >
+            {AUDIENCE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
         </div>
+        <InputField
+          label="Email Body"
+          type="rich-text"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          richTextProps={{ maxHeight: "300px" }}
+        />
+      </div>
 
-        <div className="flex gap-3 p-6 border-t border-[#E4E7EC]">
-          <Button
-            type="submit"
-            loading={isSubmitting}
-            className="flex-1 bg-[#007FFF] hover:bg-[#0066CC] text-white"
-          >
-            {isEdit ? "Save Changes" : "Create Campaign"}
-          </Button>
-          <Button
-            type="button"
-            onClick={onClose}
-            className="flex-1 bg-[#F2F4F7] text-[#344054] hover:bg-[#E4E7EC]"
-          >
-            Cancel
-          </Button>
-        </div>
-      </form>
+      <div className="flex gap-3 p-6 border-t border-[#E4E7EC]">
+        <Button
+          onClick={handle}
+          loading={savingCampaign}
+          className="flex-1 bg-[#007FFF]! hover:bg-[#0066CC]! text-white!"
+        >
+          Save Changes
+        </Button>
+        <Button
+          onClick={onClose}
+          className="flex-1 bg-[#F2F4F7]! text-[#344054]! hover:bg-[#E4E7EC]!"
+        >
+          Cancel
+        </Button>
+      </div>
     </Modal>
   );
 }
 
-// ─── Delete Confirm Modal ──────────────────────────────────────────────────────
+// ─── Delete Modal ──────────────────────────────────────────────────────────────
 
 function DeleteModal({
   item,
@@ -225,18 +148,21 @@ function DeleteModal({
         <p className="font-semibold text-[#101828] mb-1">Delete Campaign</p>
         <p className="text-sm text-[#667085] mb-5">
           Delete{" "}
-          <span className="font-medium text-[#344054]">&quot;{item.name}&quot;</span>? This cannot be
-          undone.
+          <span className="font-medium text-[#344054]">&quot;{item.name}&quot;</span>? This
+          cannot be undone.
         </p>
         <div className="flex gap-3">
           <Button
             onClick={handle}
             loading={loading}
-            className="flex-1 bg-[#D42620] hover:bg-[#b01e19] text-white"
+            className="flex-1 bg-[#D42620]! hover:bg-[#b01e19]! text-white!"
           >
             Delete
           </Button>
-          <Button onClick={onClose} className="flex-1 bg-[#F2F4F7] text-[#344054] hover:bg-[#E4E7EC]">
+          <Button
+            onClick={onClose}
+            className="flex-1 bg-[#F2F4F7]! text-[#344054]! hover:bg-[#E4E7EC]!"
+          >
             Cancel
           </Button>
         </div>
@@ -245,7 +171,7 @@ function DeleteModal({
   );
 }
 
-// ─── Send Confirm Modal ────────────────────────────────────────────────────────
+// ─── Send Modal ────────────────────────────────────────────────────────────────
 
 function SendModal({
   item,
@@ -274,18 +200,21 @@ function SendModal({
         <p className="text-sm text-[#667085] mb-5">
           Send{" "}
           <span className="font-medium text-[#344054]">&quot;{item.name}&quot;</span> to{" "}
-          <span className="font-medium text-[#344054]">{audienceLabel}</span>? This
-          action cannot be undone.
+          <span className="font-medium text-[#344054]">{audienceLabel}</span>? This cannot be
+          undone.
         </p>
         <div className="flex gap-3">
           <Button
             onClick={handle}
             loading={loading}
-            className="flex-1 bg-[#007FFF] hover:bg-[#0066CC] text-white"
+            className="flex-1 bg-[#007FFF]! hover:bg-[#0066CC]! text-white!"
           >
             Send Now
           </Button>
-          <Button onClick={onClose} className="flex-1 bg-[#F2F4F7] text-[#344054] hover:bg-[#E4E7EC]">
+          <Button
+            onClick={onClose}
+            className="flex-1 bg-[#F2F4F7]! text-[#344054]! hover:bg-[#E4E7EC]!"
+          >
             Cancel
           </Button>
         </div>
@@ -296,18 +225,23 @@ function SendModal({
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 10;
+
 type ModalState =
-  | { type: "create" }
   | { type: "edit"; item: IAdminCampaign }
   | { type: "delete"; item: IAdminCampaign }
   | { type: "send"; item: IAdminCampaign }
   | null;
 
 export default function BulkEmails() {
+  const router = useRouter();
   const { campaigns, loadingCampaigns, fetchCampaigns } = useAdminBulkEmailsStore();
   const { canWrite } = useAdminAuthStore();
 
   const [modal, setModal] = useState<ModalState>(null);
+  const [search, setSearch] = useState("");
+  const [searchApplied, setSearchApplied] = useState("");
+  const [page, setPage] = useState(1);
 
   const canWriteCampaigns = canWrite(AdminModule.BULK_EMAILS);
 
@@ -315,6 +249,14 @@ export default function BulkEmails() {
     void fetchCampaigns();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const filtered = campaigns.filter(
+    (c) =>
+      !searchApplied ||
+      c.name.toLowerCase().includes(searchApplied.toLowerCase()) ||
+      c.subject.toLowerCase().includes(searchApplied.toLowerCase()),
+  );
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const columns: Column<IAdminCampaign>[] = [
     {
@@ -331,7 +273,7 @@ export default function BulkEmails() {
       key: "targetAudience",
       header: "Audience",
       render: (c) => (
-        <span className="text-sm text-[#344054] capitalize">
+        <span className="text-sm text-[#344054]">
           {AUDIENCE_OPTIONS.find((o) => o.value === c.targetAudience)?.label ?? c.targetAudience}
         </span>
       ),
@@ -340,10 +282,7 @@ export default function BulkEmails() {
       key: "status",
       header: "Status",
       render: (c) => (
-        <StatusChip
-          label={STATUS_LABEL[c.status]}
-          variant={STATUS_VARIANT[c.status]}
-        />
+        <StatusChip label={STATUS_LABEL[c.status]} variant={STATUS_VARIANT[c.status]} />
       ),
     },
     {
@@ -361,6 +300,15 @@ export default function BulkEmails() {
       render: (c) => (
         <span className="text-sm text-[#667085]">
           {c.sentAt ? new Date(c.sentAt).toLocaleDateString() : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "createdAt",
+      header: "Created",
+      render: (c) => (
+        <span className="text-sm text-[#667085]">
+          {new Date(c.createdAt).toLocaleDateString()}
         </span>
       ),
     },
@@ -397,8 +345,8 @@ export default function BulkEmails() {
   ];
 
   return (
-    <section className="xl:px-[2rem] px-[.875rem] py-[1.25rem]">
-      <div className="flex mb-6 items-start justify-between gap-4">
+    <div className="flex flex-col gap-6">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#101828]">Bulk Emails</h1>
           <p className="text-sm text-[#667085] mt-1">
@@ -407,8 +355,8 @@ export default function BulkEmails() {
         </div>
         {canWriteCampaigns && (
           <Button
-            onClick={() => setModal({ type: "create" })}
-            className="bg-[#007FFF] text-white hover:bg-[#0066CC] shrink-0"
+            onClick={() => router.push("/bulk-emails/new")}
+            className="bg-[#007FFF]! text-white! hover:bg-[#0066CC]! shrink-0"
           >
             <Icon icon="hugeicons:plus-sign" className="w-4 h-4" />
             New Campaign
@@ -420,24 +368,37 @@ export default function BulkEmails() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F2F5]">
           <div>
             <p className="font-semibold text-[#101828]">All Campaigns</p>
-            <p className="text-sm text-[#667085]">{campaigns.length} total</p>
+            <p className="text-sm text-[#667085]">
+              {filtered.length} campaign{filtered.length !== 1 ? "s" : ""}
+            </p>
           </div>
         </div>
 
         <DataTable
           columns={columns}
-          data={campaigns}
+          data={paged}
           loading={loadingCampaigns}
           keyExtractor={(c) => c.id}
           emptyMessage="No campaigns yet. Create one to get started."
+          shouldNotHaveBorder
+          searchProps={{
+            value: search,
+            onChange: setSearch,
+            onSearch: () => { setSearchApplied(search); setPage(1); },
+            placeholder: "Search campaigns...",
+          }}
+          pagination
+          metaData={{
+            currentPage: (page - 1) * PAGE_SIZE + 1,
+            endPage: filtered.length > page * PAGE_SIZE ? page * PAGE_SIZE + 1 : (page - 1) * PAGE_SIZE + 1,
+            totalRecords: filtered.length,
+            onPageChange: (skip) => setPage(Math.floor(skip / PAGE_SIZE) + 1),
+          }}
         />
       </div>
 
-      {(modal?.type === "create" || modal?.type === "edit") && (
-        <CampaignModal
-          editItem={modal.type === "edit" ? modal.item : undefined}
-          onClose={() => setModal(null)}
-        />
+      {modal?.type === "edit" && (
+        <EditModal item={modal.item} onClose={() => setModal(null)} />
       )}
       {modal?.type === "delete" && (
         <DeleteModal item={modal.item} onClose={() => setModal(null)} />
@@ -445,6 +406,6 @@ export default function BulkEmails() {
       {modal?.type === "send" && (
         <SendModal item={modal.item} onClose={() => setModal(null)} />
       )}
-    </section>
+    </div>
   );
 }

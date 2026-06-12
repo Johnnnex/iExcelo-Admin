@@ -24,7 +24,7 @@ export const useDashboardStore = create<DashboardState>()((set, get) => ({
   registrations: [],
   totalExams: 0,
   examsCompleted: 0,
-  granularity: "month",
+  granularity: "day",
   loading: false,
 
   setGranularity: (g) => {

@@ -8,8 +8,9 @@ import { IAdminAffiliateListItem, IAffiliatePayout } from "@/src/types";
 
 interface AffiliatesState {
   affiliates: IAdminAffiliateListItem[];
-  affiliatesTotal: number;
-  affiliatesPage: number;
+  cursors: (string | null)[];
+  cursorPage: number;
+  hasMore: boolean;
   loadingAffiliates: boolean;
   searchTerm: string;
 
@@ -28,8 +29,9 @@ interface AffiliatesState {
 
 export const useAdminAffiliatesStore = create<AffiliatesState>()((set, get) => ({
   affiliates: [],
-  affiliatesTotal: 0,
-  affiliatesPage: 1,
+  cursors: [null],
+  cursorPage: 1,
+  hasMore: false,
   loadingAffiliates: false,
   searchTerm: "",
 
@@ -37,21 +39,29 @@ export const useAdminAffiliatesStore = create<AffiliatesState>()((set, get) => (
   payoutsTotal: 0,
   loadingPayouts: false,
 
-  setSearchTerm: (term) => set({ searchTerm: term }),
+  setSearchTerm: (term) => set({ searchTerm: term, cursors: [null], cursorPage: 1 }),
 
   fetchAffiliates: async (page = 1) => {
-    set({ loadingAffiliates: true, affiliatesPage: page });
+    set({ loadingAffiliates: true });
     try {
-      const { searchTerm } = get();
-      const params = new URLSearchParams({ page: String(page), limit: "20" });
+      const { searchTerm, cursors } = get();
+      const params = new URLSearchParams({ limit: "50" });
+      const cursor = cursors[page - 1];
+      if (cursor) params.set("cursor", cursor);
       if (searchTerm) params.set("search", searchTerm);
+
       const res = await api.get<{
-        data: { items: IAdminAffiliateListItem[]; total: number; page: number };
+        data: { items: IAdminAffiliateListItem[]; nextCursor: string | null; hasMore: boolean };
       }>(`/admin/affiliates?${params.toString()}`);
-      set({
-        affiliates: res.data.data.items,
-        affiliatesTotal: res.data.data.total,
-        affiliatesPage: res.data.data.page,
+
+      const { items, nextCursor, hasMore } = res.data.data;
+
+      set((s) => {
+        const newCursors = [...s.cursors];
+        if (nextCursor && newCursors.length <= page) {
+          newCursors.push(nextCursor);
+        }
+        return { affiliates: items, hasMore, cursors: newCursors, cursorPage: page };
       });
     } catch (error) {
       handleAxiosError(error, "Failed to load affiliates");

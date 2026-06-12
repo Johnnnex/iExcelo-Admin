@@ -13,19 +13,35 @@ import {
   IQuestion,
 } from "@/src/types";
 
+const LIMIT = 50;
+
+interface PaginatedState<T> {
+  items: T[];
+  total: number;
+  page: number;
+}
+
 interface ExamRevisionState {
   // ExamTypes
   examTypes: IExamType[];
+  examTypesTotal: number;
+  examTypesPage: number;
+  examTypesSearch: string;
   loadingExamTypes: boolean;
-  fetchExamTypes: () => Promise<void>;
+  setExamTypesSearch: (s: string) => void;
+  fetchExamTypes: (page?: number) => Promise<void>;
   createExamType: (data: CreateExamTypeDto, onSuccess: () => void) => Promise<void>;
   updateExamType: (id: string, data: Partial<CreateExamTypeDto & { isActive: boolean }>, onSuccess: () => void) => Promise<void>;
   deleteExamType: (id: string) => Promise<void>;
 
   // Subjects
   subjects: ISubject[];
+  subjectsTotal: number;
+  subjectsPage: number;
+  subjectsSearch: string;
   loadingSubjects: boolean;
-  fetchSubjects: () => Promise<void>;
+  setSubjectsSearch: (s: string) => void;
+  fetchSubjects: (page?: number) => Promise<void>;
   createSubject: (data: { name: string; description?: string | null }, onSuccess: () => void) => Promise<void>;
   updateSubject: (id: string, data: Partial<{ name: string; description: string | null; isActive: boolean }>, onSuccess: () => void) => Promise<void>;
   deleteSubject: (id: string) => Promise<void>;
@@ -39,20 +55,28 @@ interface ExamRevisionState {
 
   // Topics
   topics: ITopic[];
+  topicsTotal: number;
+  topicsPage: number;
+  topicsSearch: string;
   loadingTopics: boolean;
   selectedTopicSubjectId: string;
   setTopicSubjectFilter: (subjectId: string) => void;
-  fetchTopics: (subjectId?: string) => Promise<void>;
+  setTopicsSearch: (s: string) => void;
+  fetchTopics: (page?: number) => Promise<void>;
   createTopic: (data: { subjectId: string; name: string; content?: string }, onSuccess: () => void) => Promise<void>;
   updateTopic: (id: string, data: Partial<{ name: string; content: string; isActive: boolean }>, onSuccess: () => void) => Promise<void>;
   deleteTopic: (id: string) => Promise<void>;
 
   // Passages
   passages: IPassage[];
+  passagesTotal: number;
+  passagesPage: number;
+  passagesSearch: string;
   loadingPassages: boolean;
   selectedPassageEtsId: string;
   setPassageEtsFilter: (etsId: string) => void;
-  fetchPassages: (examTypeSubjectId?: string) => Promise<void>;
+  setPassagesSearch: (s: string) => void;
+  fetchPassages: (page?: number) => Promise<void>;
   createPassage: (data: { examTypeSubjectId: string; title: string; content: string }, onSuccess: () => void) => Promise<void>;
   updatePassage: (id: string, data: Partial<{ title: string; content: string; isActive: boolean }>, onSuccess: () => void) => Promise<void>;
   deletePassage: (id: string) => Promise<void>;
@@ -86,15 +110,23 @@ export interface CreateExamTypeDto {
 export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
   // ─── ExamTypes ────────────────────────────────────────────────────────────
   examTypes: [],
+  examTypesTotal: 0,
+  examTypesPage: 1,
+  examTypesSearch: "",
   loadingExamTypes: false,
 
-  fetchExamTypes: async () => {
-    set({ loadingExamTypes: true });
+  setExamTypesSearch: (s) => set({ examTypesSearch: s }),
+
+  fetchExamTypes: async (page = 1) => {
+    set({ loadingExamTypes: true, examTypesPage: page });
     try {
-      const res = await api.get<{ data: IExamType[] }>(
-        "/admin/exam-revision/exam-types",
+      const { examTypesSearch } = get();
+      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
+      if (examTypesSearch) params.set("search", examTypesSearch);
+      const res = await api.get<{ data: PaginatedState<IExamType> }>(
+        `/admin/exam-revision/exam-types?${params}`,
       );
-      set({ examTypes: res.data.data });
+      set({ examTypes: res.data.data.items, examTypesTotal: res.data.data.total, examTypesPage: res.data.data.page });
     } catch (error) {
       handleAxiosError(error, "Failed to load exam types");
     } finally {
@@ -107,7 +139,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
       await api.post("/admin/exam-revision/exam-types", data);
       toast.success("Exam type created");
       onSuccess();
-      void get().fetchExamTypes();
+      void get().fetchExamTypes(1);
     } catch (error) {
       handleAxiosError(error, "Failed to create exam type");
     }
@@ -118,7 +150,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
       await api.patch(`/admin/exam-revision/exam-types/${id}`, data);
       toast.success("Exam type updated");
       onSuccess();
-      void get().fetchExamTypes();
+      void get().fetchExamTypes(get().examTypesPage);
     } catch (error) {
       handleAxiosError(error, "Failed to update exam type");
     }
@@ -128,7 +160,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
     try {
       await api.delete(`/admin/exam-revision/exam-types/${id}`);
       toast.success("Exam type deleted");
-      set((s) => ({ examTypes: s.examTypes.filter((e) => e.id !== id) }));
+      void get().fetchExamTypes(get().examTypesPage);
     } catch (error) {
       handleAxiosError(error, "Failed to delete exam type");
     }
@@ -136,15 +168,23 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
 
   // ─── Subjects ─────────────────────────────────────────────────────────────
   subjects: [],
+  subjectsTotal: 0,
+  subjectsPage: 1,
+  subjectsSearch: "",
   loadingSubjects: false,
 
-  fetchSubjects: async () => {
-    set({ loadingSubjects: true });
+  setSubjectsSearch: (s) => set({ subjectsSearch: s }),
+
+  fetchSubjects: async (page = 1) => {
+    set({ loadingSubjects: true, subjectsPage: page });
     try {
-      const res = await api.get<{ data: ISubject[] }>(
-        "/admin/exam-revision/subjects",
+      const { subjectsSearch } = get();
+      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
+      if (subjectsSearch) params.set("search", subjectsSearch);
+      const res = await api.get<{ data: PaginatedState<ISubject> }>(
+        `/admin/exam-revision/subjects?${params}`,
       );
-      set({ subjects: res.data.data });
+      set({ subjects: res.data.data.items, subjectsTotal: res.data.data.total, subjectsPage: res.data.data.page });
     } catch (error) {
       handleAxiosError(error, "Failed to load subjects");
     } finally {
@@ -157,7 +197,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
       await api.post("/admin/exam-revision/subjects", data);
       toast.success("Subject created");
       onSuccess();
-      void get().fetchSubjects();
+      void get().fetchSubjects(1);
     } catch (error) {
       handleAxiosError(error, "Failed to create subject");
     }
@@ -168,7 +208,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
       await api.patch(`/admin/exam-revision/subjects/${id}`, data);
       toast.success("Subject updated");
       onSuccess();
-      void get().fetchSubjects();
+      void get().fetchSubjects(get().subjectsPage);
     } catch (error) {
       handleAxiosError(error, "Failed to update subject");
     }
@@ -178,7 +218,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
     try {
       await api.delete(`/admin/exam-revision/subjects/${id}`);
       toast.success("Subject deleted");
-      set((s) => ({ subjects: s.subjects.filter((s) => s.id !== id) }));
+      void get().fetchSubjects(get().subjectsPage);
     } catch (error) {
       handleAxiosError(error, "Failed to delete subject");
     }
@@ -232,19 +272,26 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
 
   // ─── Topics ───────────────────────────────────────────────────────────────
   topics: [],
+  topicsTotal: 0,
+  topicsPage: 1,
+  topicsSearch: "",
   loadingTopics: false,
   selectedTopicSubjectId: "",
 
   setTopicSubjectFilter: (subjectId) => set({ selectedTopicSubjectId: subjectId }),
+  setTopicsSearch: (s) => set({ topicsSearch: s }),
 
-  fetchTopics: async (subjectId) => {
-    set({ loadingTopics: true });
+  fetchTopics: async (page = 1) => {
+    set({ loadingTopics: true, topicsPage: page });
     try {
-      const url = subjectId
-        ? `/admin/exam-revision/topics?subjectId=${subjectId}`
-        : "/admin/exam-revision/topics";
-      const res = await api.get<{ data: ITopic[] }>(url);
-      set({ topics: res.data.data });
+      const { selectedTopicSubjectId, topicsSearch } = get();
+      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
+      if (selectedTopicSubjectId) params.set("subjectId", selectedTopicSubjectId);
+      if (topicsSearch) params.set("search", topicsSearch);
+      const res = await api.get<{ data: PaginatedState<ITopic> }>(
+        `/admin/exam-revision/topics?${params}`,
+      );
+      set({ topics: res.data.data.items, topicsTotal: res.data.data.total, topicsPage: res.data.data.page });
     } catch (error) {
       handleAxiosError(error, "Failed to load topics");
     } finally {
@@ -257,7 +304,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
       await api.post("/admin/exam-revision/topics", data);
       toast.success("Topic created");
       onSuccess();
-      void get().fetchTopics(get().selectedTopicSubjectId || undefined);
+      void get().fetchTopics(1);
     } catch (error) {
       handleAxiosError(error, "Failed to create topic");
     }
@@ -268,7 +315,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
       await api.patch(`/admin/exam-revision/topics/${id}`, data);
       toast.success("Topic updated");
       onSuccess();
-      void get().fetchTopics(get().selectedTopicSubjectId || undefined);
+      void get().fetchTopics(get().topicsPage);
     } catch (error) {
       handleAxiosError(error, "Failed to update topic");
     }
@@ -278,7 +325,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
     try {
       await api.delete(`/admin/exam-revision/topics/${id}`);
       toast.success("Topic deleted");
-      set((s) => ({ topics: s.topics.filter((t) => t.id !== id) }));
+      void get().fetchTopics(get().topicsPage);
     } catch (error) {
       handleAxiosError(error, "Failed to delete topic");
     }
@@ -286,19 +333,26 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
 
   // ─── Passages ─────────────────────────────────────────────────────────────
   passages: [],
+  passagesTotal: 0,
+  passagesPage: 1,
+  passagesSearch: "",
   loadingPassages: false,
   selectedPassageEtsId: "",
 
   setPassageEtsFilter: (etsId) => set({ selectedPassageEtsId: etsId }),
+  setPassagesSearch: (s) => set({ passagesSearch: s }),
 
-  fetchPassages: async (examTypeSubjectId) => {
-    set({ loadingPassages: true });
+  fetchPassages: async (page = 1) => {
+    set({ loadingPassages: true, passagesPage: page });
     try {
-      const url = examTypeSubjectId
-        ? `/admin/exam-revision/passages?examTypeSubjectId=${examTypeSubjectId}`
-        : "/admin/exam-revision/passages";
-      const res = await api.get<{ data: IPassage[] }>(url);
-      set({ passages: res.data.data });
+      const { selectedPassageEtsId, passagesSearch } = get();
+      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
+      if (selectedPassageEtsId) params.set("examTypeSubjectId", selectedPassageEtsId);
+      if (passagesSearch) params.set("search", passagesSearch);
+      const res = await api.get<{ data: PaginatedState<IPassage> }>(
+        `/admin/exam-revision/passages?${params}`,
+      );
+      set({ passages: res.data.data.items, passagesTotal: res.data.data.total, passagesPage: res.data.data.page });
     } catch (error) {
       handleAxiosError(error, "Failed to load passages");
     } finally {
@@ -311,7 +365,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
       await api.post("/admin/exam-revision/passages", data);
       toast.success("Passage created");
       onSuccess();
-      void get().fetchPassages(get().selectedPassageEtsId || undefined);
+      void get().fetchPassages(1);
     } catch (error) {
       handleAxiosError(error, "Failed to create passage");
     }
@@ -322,7 +376,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
       await api.patch(`/admin/exam-revision/passages/${id}`, data);
       toast.success("Passage updated");
       onSuccess();
-      void get().fetchPassages(get().selectedPassageEtsId || undefined);
+      void get().fetchPassages(get().passagesPage);
     } catch (error) {
       handleAxiosError(error, "Failed to update passage");
     }
@@ -332,7 +386,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
     try {
       await api.delete(`/admin/exam-revision/passages/${id}`);
       toast.success("Passage deleted");
-      set((s) => ({ passages: s.passages.filter((p) => p.id !== id) }));
+      void get().fetchPassages(get().passagesPage);
     } catch (error) {
       handleAxiosError(error, "Failed to delete passage");
     }
@@ -358,7 +412,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
     set({ loadingQuestions: true, questionsPage: page });
     try {
       const { questionFilters } = get();
-      const params = new URLSearchParams({ page: String(page), limit: "20" });
+      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
       if (questionFilters.examTypeSubjectId)
         params.set("examTypeSubjectId", questionFilters.examTypeSubjectId);
       if (questionFilters.type) params.set("type", questionFilters.type);
@@ -368,7 +422,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
 
       const res = await api.get<{
         data: { items: IQuestion[]; total: number; page: number };
-      }>(`/admin/exam-revision/questions?${params.toString()}`);
+      }>(`/admin/exam-revision/questions?${params}`);
       set({
         questions: res.data.data.items,
         questionsTotal: res.data.data.total,
@@ -385,7 +439,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
     try {
       await api.delete(`/admin/exam-revision/questions/${id}`);
       toast.success("Question deleted");
-      set((s) => ({ questions: s.questions.filter((q) => q.id !== id) }));
+      void get().fetchQuestions(get().questionsPage);
     } catch (error) {
       handleAxiosError(error, "Failed to delete question");
     }

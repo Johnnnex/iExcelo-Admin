@@ -34,13 +34,13 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { name: "Students", href: "/students", icon: "hugeicons:student", module: AdminModule.STUDENTS },
-  { name: "Sponsors", href: "/sponsors", icon: "hugeicons:hand-holding-dollar", module: AdminModule.SPONSORS },
+  { name: "Sponsors", href: "/sponsors", icon: "hugeicons:gift-01", module: AdminModule.SPONSORS },
   { name: "Affiliates", href: "/affiliates", icon: "hugeicons:share-01", module: AdminModule.AFFILIATES },
   { name: "Subscriptions", href: "/subscriptions", icon: "hugeicons:credit-card", module: AdminModule.SUBSCRIPTIONS },
   { name: "Testimonials", href: "/testimonials", icon: "hugeicons:comment-add-01", module: AdminModule.TESTIMONIALS },
   { name: "Bulk Emails", href: "/bulk-emails", icon: "hugeicons:mail-send-01", module: AdminModule.BULK_EMAILS },
   { name: "Analytics", href: "/analytics", icon: "hugeicons:analytics-01", module: AdminModule.ANALYTICS },
-  { name: "Messages", href: "/messages", icon: "hugeicons:message-blocked-01", module: AdminModule.MESSAGES },
+  { name: "Messages", href: "/messages", icon: "hugeicons:message-02", module: AdminModule.MESSAGES },
 ];
 
 function AccordionNavItem({
@@ -83,7 +83,7 @@ function AccordionNavItem({
         </div>
         <Icon
           icon="hugeicons:arrow-up-01"
-          className={cn("w-4 h-4 transition-transform duration-200", isOpen ? "rotate-180" : "")}
+          className={cn("w-4 h-4 transition-transform duration-200", isOpen ? "" : "rotate-180")}
         />
       </button>
       {isOpen && (

@@ -13,6 +13,10 @@ interface ManagementState {
   page: number;
   loadingAdmins: boolean;
   loadingRoles: boolean;
+  adminsSearch: string;
+  rolesSearch: string;
+  setAdminsSearch: (s: string) => void;
+  setRolesSearch: (s: string) => void;
 
   fetchAdmins: (page?: number) => Promise<void>;
   inviteAdmin: (
@@ -53,13 +57,21 @@ export const useManagementStore = create<ManagementState>()((set, get) => ({
   page: 1,
   loadingAdmins: false,
   loadingRoles: false,
+  adminsSearch: "",
+  rolesSearch: "",
+
+  setAdminsSearch: (s) => set({ adminsSearch: s }),
+  setRolesSearch: (s) => set({ rolesSearch: s }),
 
   fetchAdmins: async (page = 1) => {
     set({ loadingAdmins: true });
     try {
+      const { adminsSearch } = get();
+      const params = new URLSearchParams({ page: String(page), limit: "50" });
+      if (adminsSearch) params.set("search", adminsSearch);
       const res = await api.get<{
         data: { items: IAdminListItem[]; total: number; page: number };
-      }>(`/admin/management?page=${page}&limit=20`);
+      }>(`/admin/management?${params}`);
       set({
         admins: res.data.data.items,
         total: res.data.data.total,
@@ -127,7 +139,9 @@ export const useManagementStore = create<ManagementState>()((set, get) => ({
   fetchRoles: async () => {
     set({ loadingRoles: true });
     try {
-      const res = await api.get<{ data: IAdminRole[] }>("/admin/roles");
+      const { rolesSearch } = get();
+      const params = rolesSearch ? `?search=${encodeURIComponent(rolesSearch)}` : "";
+      const res = await api.get<{ data: IAdminRole[] }>(`/admin/roles${params}`);
       set({ roles: res.data.data });
     } catch (error) {
       handleAxiosError(error, "Failed to load roles");

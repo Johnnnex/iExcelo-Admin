@@ -16,11 +16,12 @@ export interface CampaignFormData {
 interface BulkEmailsState {
   campaigns: IAdminCampaign[];
   loadingCampaigns: boolean;
+  savingCampaign: boolean;
   sending: Record<string, boolean>;
 
   fetchCampaigns: () => Promise<void>;
-  createCampaign: (data: CampaignFormData, onSuccess: () => void) => Promise<void>;
-  updateCampaign: (id: string, data: Partial<CampaignFormData>, onSuccess: () => void) => Promise<void>;
+  createCampaign: (data: CampaignFormData) => Promise<boolean>;
+  updateCampaign: (id: string, data: Partial<CampaignFormData>) => Promise<boolean>;
   deleteCampaign: (id: string) => Promise<void>;
   sendCampaign: (id: string) => Promise<void>;
 }
@@ -28,6 +29,7 @@ interface BulkEmailsState {
 export const useAdminBulkEmailsStore = create<BulkEmailsState>()((set, get) => ({
   campaigns: [],
   loadingCampaigns: false,
+  savingCampaign: false,
   sending: {},
 
   fetchCampaigns: async () => {
@@ -42,25 +44,38 @@ export const useAdminBulkEmailsStore = create<BulkEmailsState>()((set, get) => (
     }
   },
 
-  createCampaign: async (data, onSuccess) => {
+  createCampaign: async (data) => {
+    set({ savingCampaign: true });
     try {
-      await api.post("/admin/bulk-emails", data);
+      const res = await api.post<{ data: IAdminCampaign }>("/admin/bulk-emails", data);
       toast.success("Campaign created");
-      onSuccess();
-      void get().fetchCampaigns();
+      set((s) => ({ campaigns: [...s.campaigns, res.data.data] }));
+      return true;
     } catch (error) {
       handleAxiosError(error, "Failed to create campaign");
+      return false;
+    } finally {
+      set({ savingCampaign: false });
     }
   },
 
-  updateCampaign: async (id, data, onSuccess) => {
+  updateCampaign: async (id, data) => {
+    set({ savingCampaign: true });
     try {
-      await api.patch(`/admin/bulk-emails/${id}`, data);
+      const res = await api.patch<{ data: IAdminCampaign }>(
+        `/admin/bulk-emails/${id}`,
+        data,
+      );
       toast.success("Campaign updated");
-      onSuccess();
-      void get().fetchCampaigns();
+      set((s) => ({
+        campaigns: s.campaigns.map((c) => (c.id === id ? res.data.data : c)),
+      }));
+      return true;
     } catch (error) {
       handleAxiosError(error, "Failed to update campaign");
+      return false;
+    } finally {
+      set({ savingCampaign: false });
     }
   },
 

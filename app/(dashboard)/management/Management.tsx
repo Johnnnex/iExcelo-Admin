@@ -1,19 +1,30 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { Icon } from "@iconify/react";
 import { useManagementStore } from "@/src/store/management.store";
 import { useAdminAuthStore } from "@/src/store/auth.store";
-import { IAdminListItem, IAdminRole, AdminModule, ModulePermission, ModulePermissionsMap } from "@/src/types";
+import {
+  IAdminListItem,
+  IAdminRole,
+  AdminModule,
+  ModulePermission,
+  ModulePermissionsMap,
+} from "@/src/types";
 import { DataTable, Column } from "@/src/components/molecules/DataTable";
 import { Modal } from "@/src/components/molecules/Modal";
 import { InputField } from "@/src/components/molecules/InputField";
 import { Button } from "@/src/components/atoms/Button";
 import { StatusChip } from "@/src/components/atoms/StatusChip";
 import { CheckBox } from "@/src/components/atoms/CheckBox";
-import { inviteAdminSchema, InviteAdminValues, createRoleSchema, CreateRoleValues } from "@/src/schemas/management.schema";
+import {
+  inviteAdminSchema,
+  InviteAdminValues,
+  createRoleSchema,
+  CreateRoleValues,
+} from "@/src/schemas/management.schema";
 import { CARD_SHADOW } from "@/src/utils";
 
 // ─── All admin modules for permission toggles ──────────────────────────────
@@ -66,7 +77,10 @@ function PermissionsDrawer({
 
   const toggle = (mod: AdminModule, key: "canRead" | "canWrite") => {
     setPerms((prev) => {
-      const current: ModulePermission = prev[mod] ?? { canRead: false, canWrite: false };
+      const current: ModulePermission = prev[mod] ?? {
+        canRead: false,
+        canWrite: false,
+      };
       const updated = { ...current, [key]: !current[key] };
       if (key === "canWrite" && updated.canWrite) updated.canRead = true;
       if (key === "canRead" && !updated.canRead) updated.canWrite = false;
@@ -121,7 +135,11 @@ function PermissionsDrawer({
           {defaultPerms && (
             <div className="flex items-center justify-between mb-4">
               <p className="text-xs text-[#667085]">
-                Based on <span className="font-medium text-[#344054]">{admin?.roleName}</span> template
+                Based on{" "}
+                <span className="font-medium text-[#344054]">
+                  {admin?.roleName}
+                </span>{" "}
+                template
               </p>
               <button
                 onClick={resetToDefault}
@@ -139,18 +157,29 @@ function PermissionsDrawer({
           </div>
           <div className="flex flex-col gap-1">
             {ALL_MODULES.map(({ key, label }) => {
-              const p: ModulePermission = perms[key] ?? { canRead: false, canWrite: false };
+              const p: ModulePermission = perms[key] ?? {
+                canRead: false,
+                canWrite: false,
+              };
               return (
                 <div
                   key={key}
                   className="grid grid-cols-3 items-center px-3 py-3 rounded-lg hover:bg-[#F9FAFB] transition-colors"
                 >
-                  <span className="text-sm text-[#344054] font-medium">{label}</span>
+                  <span className="text-sm text-[#344054] font-medium">
+                    {label}
+                  </span>
                   <div className="flex justify-center">
-                    <CheckBox value={p.canRead} onChange={() => toggle(key, "canRead")} />
+                    <CheckBox
+                      value={p.canRead}
+                      onChange={() => toggle(key, "canRead")}
+                    />
                   </div>
                   <div className="flex justify-center">
-                    <CheckBox value={p.canWrite} onChange={() => toggle(key, "canWrite")} />
+                    <CheckBox
+                      value={p.canWrite}
+                      onChange={() => toggle(key, "canWrite")}
+                    />
                   </div>
                 </div>
               );
@@ -159,7 +188,10 @@ function PermissionsDrawer({
         </div>
 
         <div className="px-6 py-4 border-t border-[#EAECF0] flex gap-3">
-          <Button onClick={onClose} className="flex-1 !bg-white !text-[#344054] border border-[#D0D5DD]">
+          <Button
+            onClick={onClose}
+            className="flex-1 !bg-white !text-[#344054] border border-[#D0D5DD]"
+          >
             Cancel
           </Button>
           <Button onClick={save} loading={saving} className="flex-1">
@@ -181,7 +213,10 @@ function ModuleToggles({
   onChange: (v: ModulePermissionsMap) => void;
 }) {
   const toggle = (mod: AdminModule, key: "canRead" | "canWrite") => {
-    const current: ModulePermission = value[mod] ?? { canRead: false, canWrite: false };
+    const current: ModulePermission = value[mod] ?? {
+      canRead: false,
+      canWrite: false,
+    };
     const updated = { ...current, [key]: !current[key] };
     if (key === "canWrite" && updated.canWrite) updated.canRead = true;
     if (key === "canRead" && !updated.canRead) updated.canWrite = false;
@@ -196,7 +231,10 @@ function ModuleToggles({
         <span className="text-center">Write</span>
       </div>
       {ALL_MODULES.map(({ key, label }, i) => {
-        const p: ModulePermission = value[key] ?? { canRead: false, canWrite: false };
+        const p: ModulePermission = value[key] ?? {
+          canRead: false,
+          canWrite: false,
+        };
         return (
           <div
             key={key}
@@ -204,10 +242,16 @@ function ModuleToggles({
           >
             <span className="text-sm text-[#344054]">{label}</span>
             <div className="flex justify-center">
-              <CheckBox value={p.canRead} onChange={() => toggle(key, "canRead")} />
+              <CheckBox
+                value={p.canRead}
+                onChange={() => toggle(key, "canRead")}
+              />
             </div>
             <div className="flex justify-center">
-              <CheckBox value={p.canWrite} onChange={() => toggle(key, "canWrite")} />
+              <CheckBox
+                value={p.canWrite}
+                onChange={() => toggle(key, "canWrite")}
+              />
             </div>
           </div>
         );
@@ -219,14 +263,30 @@ function ModuleToggles({
 // ─── Admins Tab ────────────────────────────────────────────────────────────
 
 function AdminsTab() {
-  const { admins, total, page, loadingAdmins, roles, loadingRoles, fetchAdmins, fetchRoles, inviteAdmin, deactivateAdmin, reactivateAdmin } =
-    useManagementStore();
+  const {
+    admins,
+    total,
+    page,
+    loadingAdmins,
+    adminsSearch,
+    setAdminsSearch,
+    roles,
+    loadingRoles,
+    fetchAdmins,
+    fetchRoles,
+    inviteAdmin,
+    deactivateAdmin,
+    reactivateAdmin,
+  } = useManagementStore();
   const { canWrite } = useAdminAuthStore();
   const canManage = canWrite(AdminModule.ADMIN_MANAGEMENT);
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [drawerAdmin, setDrawerAdmin] = useState<IAdminListItem | null>(null);
-  const [confirmAdmin, setConfirmAdmin] = useState<{ admin: IAdminListItem; action: "deactivate" | "reactivate" } | null>(null);
+  const [confirmAdmin, setConfirmAdmin] = useState<{
+    admin: IAdminListItem;
+    action: "deactivate" | "reactivate";
+  } | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
   const {
@@ -238,7 +298,13 @@ function AdminsTab() {
     formState: { errors, isSubmitting },
   } = useForm<InviteAdminValues>({
     resolver: yupResolver(inviteAdminSchema),
-    defaultValues: { email: "", firstName: "", lastName: "", roleId: null, modulePermissions: {} },
+    defaultValues: {
+      email: "",
+      firstName: "",
+      lastName: "",
+      roleId: null,
+      modulePermissions: {},
+    },
   });
 
   const watchedRoleId = watch("roleId");
@@ -270,7 +336,10 @@ function AdminsTab() {
         roleId: data.roleId ?? null,
         modulePermissions: data.modulePermissions ?? {},
       },
-      () => { setInviteOpen(false); reset(); },
+      () => {
+        setInviteOpen(false);
+        reset();
+      },
     );
   };
 
@@ -317,7 +386,10 @@ function AdminsTab() {
       key: "status",
       header: "Status",
       render: (row) => (
-        <StatusChip variant={row.isActive ? "success" : "error"} label={row.isActive ? "Active" : "Inactive"} />
+        <StatusChip
+          variant={row.isActive ? "success" : "error"}
+          label={row.isActive ? "Active" : "Inactive"}
+        />
       ),
     },
     {
@@ -335,14 +407,18 @@ function AdminsTab() {
             <span className="text-[#D0D5DD]">|</span>
             {row.isActive ? (
               <button
-                onClick={() => setConfirmAdmin({ admin: row, action: "deactivate" })}
+                onClick={() =>
+                  setConfirmAdmin({ admin: row, action: "deactivate" })
+                }
                 className="text-xs text-[#D42620] hover:underline"
               >
                 Deactivate
               </button>
             ) : (
               <button
-                onClick={() => setConfirmAdmin({ admin: row, action: "reactivate" })}
+                onClick={() =>
+                  setConfirmAdmin({ admin: row, action: "reactivate" })
+                }
                 className="text-xs text-[#099137] hover:underline"
               >
                 Reactivate
@@ -353,18 +429,22 @@ function AdminsTab() {
     },
   ];
 
-  const totalPages = Math.ceil(total / 20);
-
   return (
     <>
-      <div className="bg-white rounded-2xl" style={{ boxShadow: CARD_SHADOW }}>
+      <div
+        className="bg-white overflow-hidden rounded-2xl"
+        style={{ boxShadow: CARD_SHADOW }}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F2F5]">
           <div>
             <p className="font-semibold text-[#101828]">Admins</p>
             <p className="text-sm text-[#667085]">{total} total</p>
           </div>
           {canManage && (
-            <Button onClick={() => setInviteOpen(true)} className="flex items-center gap-2">
+            <Button
+              onClick={() => setInviteOpen(true)}
+              className="flex items-center gap-2"
+            >
               <Icon icon="hugeicons:user-add-01" width={16} height={16} />
               Invite Admin
             </Button>
@@ -377,12 +457,19 @@ function AdminsTab() {
           loading={loadingAdmins || loadingRoles}
           keyExtractor={(r) => r.id}
           emptyMessage="No admins found"
-          pagination={totalPages > 1}
+          shouldNotHaveBorder
+          searchProps={{
+            value: adminsSearch,
+            onChange: setAdminsSearch,
+            onSearch: () => fetchAdmins(1),
+            placeholder: "Search by name or email...",
+          }}
+          pagination
           metaData={{
-            currentPage: page,
-            endPage: totalPages,
+            currentPage: (page - 1) * 50 + 1,
+            endPage: total > page * 50 ? page * 50 + 1 : (page - 1) * 50 + 1,
             totalRecords: total,
-            onPageChange: (p) => fetchAdmins(p),
+            onPageChange: (skip) => fetchAdmins(Math.floor(skip / 50) + 1),
           }}
         />
       </div>
@@ -390,13 +477,22 @@ function AdminsTab() {
       {/* Invite Modal */}
       <Modal
         isOpen={inviteOpen}
-        onClose={() => { setInviteOpen(false); reset(); }}
+        onClose={() => {
+          setInviteOpen(false);
+          reset();
+        }}
         className="w-full max-w-lg rounded-2xl p-6"
         overflowY="auto"
       >
         <div className="flex items-center justify-between mb-6">
           <p className="text-lg font-semibold text-[#101828]">Invite Admin</p>
-          <button onClick={() => { setInviteOpen(false); reset(); }} className="text-[#667085]">
+          <button
+            onClick={() => {
+              setInviteOpen(false);
+              reset();
+            }}
+            className="text-[#667085]"
+          >
             <Icon icon="hugeicons:cancel-01" width={20} />
           </button>
         </div>
@@ -478,7 +574,10 @@ function AdminsTab() {
           <div className="flex gap-3 mt-2">
             <Button
               type="button"
-              onClick={() => { setInviteOpen(false); reset(); }}
+              onClick={() => {
+                setInviteOpen(false);
+                reset();
+              }}
               className="flex-1 !bg-white !text-[#344054] border border-[#D0D5DD]"
             >
               Cancel
@@ -497,11 +596,17 @@ function AdminsTab() {
         className="w-full max-w-sm rounded-2xl p-6"
       >
         <p className="text-lg font-semibold text-[#101828] mb-2">
-          {confirmAdmin?.action === "deactivate" ? "Deactivate Admin" : "Reactivate Admin"}
+          {confirmAdmin?.action === "deactivate"
+            ? "Deactivate Admin"
+            : "Reactivate Admin"}
         </p>
         <p className="text-sm text-[#667085] mb-6">
           Are you sure you want to {confirmAdmin?.action}{" "}
-          <strong>{confirmAdmin?.admin.user?.firstName} {confirmAdmin?.admin.user?.lastName}</strong>?
+          <strong>
+            {confirmAdmin?.admin.user?.firstName}{" "}
+            {confirmAdmin?.admin.user?.lastName}
+          </strong>
+          ?
         </p>
         <div className="flex gap-3">
           <Button
@@ -533,7 +638,16 @@ function AdminsTab() {
 // ─── Roles Tab ─────────────────────────────────────────────────────────────
 
 function RolesTab() {
-  const { roles, loadingRoles, fetchRoles, createRole, updateRole, deleteRole } = useManagementStore();
+  const {
+    roles,
+    loadingRoles,
+    rolesSearch,
+    setRolesSearch,
+    fetchRoles,
+    createRole,
+    updateRole,
+    deleteRole,
+  } = useManagementStore();
   const { canWrite } = useAdminAuthStore();
   const canManage = canWrite(AdminModule.ADMIN_MANAGEMENT);
 
@@ -616,10 +730,10 @@ function RolesTab() {
       key: "modules",
       header: "Permissions",
       render: (row) => {
-        const count = Object.values(row.modules).filter((m) => m?.canRead).length;
-        return (
-          <span className="text-sm text-[#344054]">{count} modules</span>
-        );
+        const count = Object.values(row.modules).filter(
+          (m) => m?.canRead,
+        ).length;
+        return <span className="text-sm text-[#344054]">{count} modules</span>;
       },
     },
     {
@@ -667,6 +781,13 @@ function RolesTab() {
           loading={loadingRoles}
           keyExtractor={(r) => r.id}
           emptyMessage="No role templates yet"
+          shouldNotHaveBorder
+          searchProps={{
+            value: rolesSearch,
+            onChange: setRolesSearch,
+            onSearch: () => fetchRoles(),
+            placeholder: "Search role templates...",
+          }}
         />
       </div>
 
@@ -686,7 +807,10 @@ function RolesTab() {
           </button>
         </div>
         <div className="overflow-y-auto max-h-[80vh] px-6 py-4">
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+          <form
+            onSubmit={handleSubmit(onSubmit)}
+            className="flex flex-col gap-4"
+          >
             <Controller
               name="name"
               control={control}
@@ -715,7 +839,9 @@ function RolesTab() {
               )}
             />
             <div>
-              <p className="text-sm font-medium text-[#344054] mb-2">Module Access</p>
+              <p className="text-sm font-medium text-[#344054] mb-2">
+                Module Access
+              </p>
               <ModuleToggles value={modules} onChange={setModules} />
             </div>
             <div className="flex gap-3 mt-2">
@@ -742,7 +868,8 @@ function RolesTab() {
       >
         <p className="text-lg font-semibold text-[#101828] mb-2">Delete Role</p>
         <p className="text-sm text-[#667085] mb-6">
-          Delete <strong>{deleteTarget?.name}</strong>? Admins assigned this role will keep their current permissions.
+          Delete <strong>{deleteTarget?.name}</strong>? Admins assigned this
+          role will keep their current permissions.
         </p>
         <div className="flex gap-3">
           <Button
@@ -771,6 +898,13 @@ type Tab = (typeof TABS)[number];
 
 export default function Management() {
   const [activeTab, setActiveTab] = useState<Tab>("Admins");
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [pillStyle, setPillStyle] = useState({ left: 4, width: 80 });
+
+  useLayoutEffect(() => {
+    const el = tabRefs.current[TABS.indexOf(activeTab)];
+    if (el) setPillStyle({ left: el.offsetLeft, width: el.offsetWidth });
+  }, [activeTab]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -781,15 +915,27 @@ export default function Management() {
         </p>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex gap-1 bg-[#F9FAFB] p-1 rounded-xl w-fit border border-[#F0F2F5]">
-        {TABS.map((tab) => (
+      {/* Animated bouncy tab pill */}
+      <div className="relative flex bg-[#F9FAFB] p-1 rounded-xl w-fit border border-[#F0F2F5]">
+        <div
+          className="absolute top-1 bottom-1 rounded-lg bg-white shadow-sm"
+          style={{
+            left: `${pillStyle.left}px`,
+            width: `${pillStyle.width}px`,
+            transition:
+              "left 300ms cubic-bezier(0.34, 1.56, 0.64, 1), width 300ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+          }}
+        />
+        {TABS.map((tab, i) => (
           <button
             key={tab}
+            ref={(el) => {
+              tabRefs.current[i] = el;
+            }}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            className={`relative z-10 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
               activeTab === tab
-                ? "bg-white text-[#101828] shadow-sm"
+                ? "text-[#101828]"
                 : "text-[#667085] hover:text-[#344054]"
             }`}
           >

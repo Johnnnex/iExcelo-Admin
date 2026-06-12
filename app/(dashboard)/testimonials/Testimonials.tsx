@@ -256,6 +256,10 @@ export default function Testimonials() {
 
   const [modal, setModal] = useState<ModalState>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [searchApplied, setSearchApplied] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const canWriteTestimonials = canWrite(AdminModule.TESTIMONIALS);
 
@@ -263,6 +267,14 @@ export default function Testimonials() {
     void fetchTestimonials();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const filtered = testimonials.filter(
+    (t) =>
+      !searchApplied ||
+      t.name.toLowerCase().includes(searchApplied.toLowerCase()) ||
+      t.content.toLowerCase().includes(searchApplied.toLowerCase()),
+  );
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleToggle = async (id: string) => {
     setTogglingId(id);
@@ -394,9 +406,9 @@ export default function Testimonials() {
   ];
 
   return (
-    <section className="xl:px-[2rem] px-[.875rem] py-[1.25rem]">
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex mb-6 items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#101828]">Testimonials</h1>
           <p className="text-sm text-[#667085] mt-1">
@@ -406,7 +418,7 @@ export default function Testimonials() {
         {canWriteTestimonials && (
           <Button
             onClick={() => setModal({ type: "create" })}
-            className="bg-[#007FFF] text-white hover:bg-[#0066CC] shrink-0"
+            className="bg-[#007FFF]! text-white! hover:bg-[#0066CC]! shrink-0"
           >
             <Icon icon="hugeicons:plus-sign" className="w-4 h-4" />
             Add Testimonial
@@ -419,16 +431,30 @@ export default function Testimonials() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F2F5]">
           <div>
             <p className="font-semibold text-[#101828]">All Testimonials</p>
-            <p className="text-sm text-[#667085]">{testimonials.length} total</p>
+            <p className="text-sm text-[#667085]">{filtered.length} total</p>
           </div>
         </div>
 
         <DataTable
           columns={columns}
-          data={testimonials}
+          data={paged}
           loading={loadingTestimonials}
           keyExtractor={(t) => t.id}
           emptyMessage="No testimonials yet. Add the first one."
+          shouldNotHaveBorder
+          searchProps={{
+            value: search,
+            onChange: setSearch,
+            onSearch: () => { setSearchApplied(search); setPage(1); },
+            placeholder: "Search testimonials...",
+          }}
+          pagination
+          metaData={{
+            currentPage: (page - 1) * PAGE_SIZE + 1,
+            endPage: filtered.length > page * PAGE_SIZE ? page * PAGE_SIZE + 1 : (page - 1) * PAGE_SIZE + 1,
+            totalRecords: filtered.length,
+            onPageChange: (skip) => setPage(Math.floor(skip / PAGE_SIZE) + 1),
+          }}
         />
       </div>
 
@@ -442,6 +468,6 @@ export default function Testimonials() {
       {modal?.type === "delete" && (
         <DeleteModal item={modal.item} onClose={() => setModal(null)} />
       )}
-    </section>
+    </div>
   );
 }

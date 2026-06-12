@@ -222,8 +222,25 @@ export interface IAdminSubscription {
   student?: {
     user: { firstName: string; lastName: string; email: string };
   };
+  sponsor?: {
+    companyName: string | null;
+    user: { firstName: string; lastName: string; email: string };
+  } | null;
   examType?: { id: string; name: string };
   plan?: { id: string; name: string; durationDays: number };
+}
+
+export interface IAdminSubscriptionPlan {
+  id: string;
+  examTypeId: string;
+  name: string;
+  description: string | null;
+  durationDays: number;
+  isActive: boolean;
+  sortOrder: number;
+  stripeProductId: string | null;
+  examType?: { id: string; name: string };
+  createdAt: string;
 }
 
 // ─── Testimonials ─────────────────────────────────────────────────────────────
@@ -294,8 +311,7 @@ export interface IQuestion {
   marks: number;
   options: QuestionOptionType[] | null;
   correctAnswer: unknown;
-  explanationShort: string | null;
-  explanationLong: string | null;
+  explanation: string | null;
   topicId: string | null;
   passageId: string | null;
   isActive: boolean;
@@ -308,4 +324,43 @@ export interface IQuestion {
   };
   topic?: { id: string; name: string } | null;
   createdAt: string;
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+export interface IAdminKpis {
+  totalCompletions: number;
+  avgScore: number;
+  totalRevenue: number;
+  totalQuestions: number;
+}
+
+export interface IExamCompletionPoint {
+  name: string;
+  Completions: number;
+}
+
+export interface ISubjectPerformancePoint {
+  name: string;
+  Accuracy: number;
+  Attempts: number;
+}
+
+export interface IQuestionDistPoint {
+  name: string;
+  value: number;
+  fill: string;
+}
+
+export interface IRevenuePoint {
+  name: string;
+  Revenue: number;
+  Subscriptions: number;
+}
+
+export interface IExamTypePoint {
+  name: string;
+  Completions: number;
+  AvgScore: number;
+  fill: string;
 }

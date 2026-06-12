@@ -12,17 +12,19 @@ interface MessagesState {
   page: number;
   loadingFlags: boolean;
   statusFilter: FlagStatus | "";
+  search: string;
   actingId: string | null;
 
   setStatusFilter: (status: FlagStatus | "") => void;
   setPage: (page: number) => void;
+  setSearch: (s: string) => void;
   fetchFlags: () => Promise<void>;
   reviewFlag: (id: string, adminNotes?: string) => Promise<void>;
   dismissFlag: (id: string, adminNotes?: string) => Promise<void>;
   suspendUser: (userId: string, suspendedUntil: string, onSuccess?: () => void) => Promise<void>;
 }
 
-const LIMIT = 20;
+const LIMIT = 50;
 
 export const useAdminMessagesStore = create<MessagesState>()((set, get) => ({
   flags: [],
@@ -30,6 +32,7 @@ export const useAdminMessagesStore = create<MessagesState>()((set, get) => ({
   page: 1,
   loadingFlags: false,
   statusFilter: "",
+  search: "",
   actingId: null,
 
   setStatusFilter: (status) => {
@@ -42,8 +45,13 @@ export const useAdminMessagesStore = create<MessagesState>()((set, get) => ({
     void get().fetchFlags();
   },
 
+  setSearch: (s) => {
+    set({ search: s, page: 1 });
+    void get().fetchFlags();
+  },
+
   fetchFlags: async () => {
-    const { page, statusFilter } = get();
+    const { page, statusFilter, search } = get();
     set({ loadingFlags: true });
     try {
       const params: Record<string, string> = {
@@ -51,6 +59,7 @@ export const useAdminMessagesStore = create<MessagesState>()((set, get) => ({
         limit: String(LIMIT),
       };
       if (statusFilter) params.status = statusFilter;
+      if (search) params.search = search;
 
       const res = await api.get<{
         data: { items: IAdminMessageFlag[]; total: number };

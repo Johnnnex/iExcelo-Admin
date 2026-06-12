@@ -43,6 +43,7 @@ export interface RichTextProps {
    */
   variant?: "full" | "chat";
   maxHeight?: string;
+  minHeight?: string;
 }
 
 interface TipTapProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChange"> {
@@ -179,7 +180,10 @@ const TipTap = forwardRef<HTMLDivElement, TipTapProps>(
         )}
         <div
           className="h-fit w-full px-[10px] overflow-y-auto"
-          style={richTextProps?.maxHeight ? { maxHeight: richTextProps.maxHeight } : undefined}
+          style={{
+            ...(richTextProps?.maxHeight ? { maxHeight: richTextProps.maxHeight } : {}),
+            ...(richTextProps?.minHeight ? { minHeight: richTextProps.minHeight } : {}),
+          }}
         >
           <EditorContent
             ref={ref}
