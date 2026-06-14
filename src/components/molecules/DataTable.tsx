@@ -45,7 +45,12 @@ interface DataTableProps<T> {
   searchProps?: SearchProps;
   shouldNotHaveBorder?: boolean;
   nonScrollable?: boolean;
+  noFooterOverlap?: boolean;
 }
+
+const THEAD_H = 47;
+const MAX_BODY_H = 990;
+const FOOTER_H = 68;
 
 function DataTable<T>({
   columns,
@@ -61,9 +66,13 @@ function DataTable<T>({
   searchProps,
   shouldNotHaveBorder = false,
   nonScrollable = false,
+  noFooterOverlap = true,
 }: DataTableProps<T>) {
   const [isBottom, setIsBottom] = useState(false);
+  const [bodyH, setBodyH] = useState(0);
   const container = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const tbodyRef = useRef<HTMLTableSectionElement | null>(null);
 
   const onSearchRef = useRef(searchProps?.onSearch);
   useEffect(() => {
@@ -78,28 +87,44 @@ function DataTable<T>({
     }, 500);
   };
 
-  const handleScroll = () => {
-    if (container.current) {
-      const { scrollTop, scrollHeight, clientHeight } = container.current;
-      setIsBottom(scrollTop + clientHeight >= scrollHeight);
-    }
-  };
-
+  // Use IntersectionObserver on a sentinel element placed at the bottom of the
+  // table content. This avoids the scroll-measurement feedback loop where
+  // switching between floating-pill and full-bar pagination changes the
+  // container's scrollHeight and causes the state to flicker.
   useEffect(() => {
-    handleScroll();
-    const parent = container.current;
-    if (parent) {
-      parent.addEventListener("scroll", handleScroll);
-      return () => parent.removeEventListener("scroll", handleScroll);
-    }
-  }, [JSON.stringify(data)]);
+    const sentinel = sentinelRef.current;
+    const root = container.current;
+    if (!sentinel || !root) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setIsBottom(!!entry.isIntersecting),
+      { root, threshold: 0 },
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [JSON.stringify(data), loading]);
 
+  // Only measure tbody when noFooterOverlap is requested — keeps default
+  // tables unchanged while letting specific tables avoid footer clipping.
+  useEffect(() => {
+    if (!noFooterOverlap) return;
+    const el = tbodyRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(([entry]) => {
+      setBodyH(entry.contentRect.height);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [noFooterOverlap]);
+
+  const footerPad = pagination ? 50 : 0;
   const containerHeight = loading
     ? "700px"
     : data.length
-      ? nonScrollable
-        ? `${(99 * data.length + 45) / 16}rem`
-        : `${(99 * (data.length > 10 ? 10 : data.length) + 47) / 16}rem`
+      ? noFooterOverlap && bodyH > 0
+        ? `${(nonScrollable ? bodyH : Math.min(bodyH, MAX_BODY_H)) + THEAD_H + FOOTER_H}px`
+        : nonScrollable
+          ? `${(99 * data.length + 45 + footerPad) / 16}rem`
+          : `${(99 * (data.length > 10 ? 10 : data.length) + 47 + footerPad) / 16}rem`
       : "550px";
 
   return (
@@ -115,7 +140,7 @@ function DataTable<T>({
               onChange={(e) => {
                 const value = e.target.value;
                 searchProps.onChange(value);
-                handleSearch(value);
+                handleSearch();
               }}
               placeholder={
                 searchProps.placeholder ?? "Searching for something?"
@@ -166,7 +191,7 @@ function DataTable<T>({
           style={{
             borderCollapse: "collapse",
             overflow: "auto",
-            height: "100%",
+            height: "fit-content",
           }}
         >
           <thead className="sticky top-0 z-[50] h-fit bg-white">
@@ -190,7 +215,7 @@ function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody ref={tbodyRef}>
             {loading ? (
               <tr className="h-fit w-full bg-white">
                 <td
@@ -246,7 +271,9 @@ function DataTable<T>({
                       rowIndex === data.length - 1 && isBottom ? "last-row" : ""
                     }`}
                   >
-                    {pagination ? (metaData?.currentPage ?? 1) + rowIndex : rowIndex + 1}
+                    {pagination
+                      ? (metaData?.currentPage ?? 1) + rowIndex
+                      : rowIndex + 1}
                   </td>
                   {columns.map((col) => (
                     <td
@@ -271,85 +298,79 @@ function DataTable<T>({
           </tbody>
         </table>
 
-        {pagination && (
-          <section
-            className="sticky transition-all duration-200"
-            style={{ bottom: isBottom ? "0px" : "12px" }}
-          >
-            <div
-              className={`m-auto flex flex-row items-center border border-[#EAECF0] px-4 py-3 transition-all duration-200 ${
-                isBottom
-                  ? "w-full rounded-b-lg border-b-0 border-l-0 border-r-0 border-t bg-white justify-between"
-                  : "w-fit rounded-lg bg-[#FFFFFFEE] justify-center gap-3"
-              }`}
-            >
-              {isBottom && (
-                loading ? (
+        <div ref={sentinelRef} style={{ height: "1px" }} aria-hidden />
+        {pagination &&
+          (() => {
+            const prevDisabled = loading || metaData?.currentPage === 1;
+            const nextDisabled =
+              loading || metaData?.endPage === metaData?.currentPage;
+            const lastItem =
+              metaData?.endPage === metaData?.currentPage
+                ? (metaData?.totalRecords ?? 1)
+                : (metaData?.endPage ?? 2) - 1;
+
+            const PrevBtn = () => (
+              <button
+                onClick={() =>
+                  metaData?.onPageChange?.(
+                    Math.max(0, (metaData?.currentPage || 0) - 50 - 1) || 0,
+                  )
+                }
+                disabled={prevDisabled}
+                className="min-h-0 min-w-0 rounded-lg border border-[#D0D5DD] p-2 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] disabled:cursor-not-allowed"
+              >
+                <Icon
+                  icon="hugeicons:arrow-left-01"
+                  className="w-5 h-5"
+                  style={{ color: prevDisabled ? "#34405490" : "#344054" }}
+                />
+              </button>
+            );
+
+            const NextBtn = () => (
+              <button
+                onClick={() => metaData?.onPageChange?.(metaData?.endPage || 1)}
+                disabled={nextDisabled}
+                className="min-h-0 min-w-0 rounded-lg border border-[#D0D5DD] p-2 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] disabled:cursor-not-allowed"
+              >
+                <Icon
+                  icon="hugeicons:arrow-right-01"
+                  className="w-5 h-5"
+                  style={{ color: nextDisabled ? "#34405490" : "#344054" }}
+                />
+              </button>
+            );
+
+            return isBottom ? (
+              <div className="sticky bottom-0 w-full flex flex-row items-center justify-between border-t border-[#EAECF0] bg-white px-4 py-3 rounded-b-lg">
+                {loading ? (
                   <div className="pulse h-[15px] w-[200px] rounded-[10px] bg-[#f5f5f9]" />
                 ) : (
                   <div className="text-sm font-semibold leading-[142.857%] text-[#202224] opacity-60">
-                    Showing {metaData?.currentPage ?? 1}–{
-                      metaData?.endPage === metaData?.currentPage
-                        ? metaData?.totalRecords ?? 1
-                        : (metaData?.endPage ?? 2) - 1
-                    } of {metaData?.totalRecords ?? 1}
+                    Showing {metaData?.currentPage ?? 1}–{lastItem} of{" "}
+                    {metaData?.totalRecords ?? 1}
                   </div>
-                )
-              )}
-              <div className={`flex items-center ${isBottom ? "gap-[1.375rem]" : "gap-3"}`}>
-                <button
-                  onClick={() =>
-                    metaData?.onPageChange?.(
-                      Math.max(0, (metaData?.currentPage || 0) - 50 - 1) || 0,
-                    )
-                  }
-                  disabled={loading || metaData?.currentPage === 1}
-                  className="min-h-0 min-w-0 rounded-lg border border-[#D0D5DD] p-2 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] disabled:cursor-not-allowed"
-                >
-                  <Icon
-                    style={{
-                      color:
-                        loading || metaData?.currentPage === 1
-                          ? "#34405490"
-                          : "#344054",
-                    }}
-                    icon={"hugeicons:arrow-left-01"}
-                    className="w-5 h-5"
-                  />
-                </button>
-                {!isBottom && (
-                  <span className="min-w-[4.5rem] text-center text-sm font-semibold text-[#344054] opacity-70 select-none">
-                    {metaData?.currentPage ?? 1}–{
-                      metaData?.endPage === metaData?.currentPage
-                        ? metaData?.totalRecords ?? 1
-                        : (metaData?.endPage ?? 2) - 1
-                    }
-                  </span>
                 )}
-                <button
-                  onClick={() =>
-                    metaData?.onPageChange?.(metaData?.endPage || 1)
-                  }
-                  disabled={
-                    loading || metaData?.endPage === metaData?.currentPage
-                  }
-                  className="min-h-0 min-w-0 rounded-lg border border-[#D0D5DD] p-2 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] disabled:cursor-not-allowed"
-                >
-                  <Icon
-                    icon={"hugeicons:arrow-right-01"}
-                    style={{
-                      color:
-                        loading || metaData?.endPage === metaData?.currentPage
-                          ? "#34405490"
-                          : "#344054",
-                    }}
-                    className="w-5 h-5"
-                  />
-                </button>
+                <div className="flex items-center gap-[1.375rem]">
+                  <PrevBtn />
+                  <NextBtn />
+                </div>
               </div>
-            </div>
-          </section>
-        )}
+            ) : (
+              <div
+                className="sticky flex justify-center"
+                style={{ bottom: "12px" }}
+              >
+                <div className="flex items-center gap-3 rounded-lg border border-[#EAECF0] bg-[#FFFFFFEE] px-4 py-3">
+                  <PrevBtn />
+                  <span className="min-w-[4.5rem] text-center text-sm font-semibold text-[#344054] opacity-70 select-none">
+                    {metaData?.currentPage ?? 1}–{lastItem}
+                  </span>
+                  <NextBtn />
+                </div>
+              </div>
+            );
+          })()}
       </div>
     </section>
   );

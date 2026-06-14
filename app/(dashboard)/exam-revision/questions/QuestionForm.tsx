@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, Controller, useFieldArray } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { Icon } from "@iconify/react";
 import { v4 as uuidv4 } from "uuid";
@@ -13,8 +13,11 @@ import { useExamRevisionStore } from "@/src/store/exam-revision.store";
 import { InputField } from "@/src/components/molecules/InputField";
 import { Button } from "@/src/components/atoms/Button";
 import { Radio, CheckBox } from "@/src/components/atoms";
-import { IQuestion, IExamType, IExamTypeSubject, ITopic, IPassage } from "@/src/types";
-import { questionSchema, QuestionValues } from "@/src/schemas/exam-revision.schema";
+import { IQuestion, IExamTypeSubject, ITopic, IPassage } from "@/src/types";
+import {
+  questionSchema,
+  QuestionValues,
+} from "@/src/schemas/exam-revision.schema";
 import { CARD_SHADOW } from "@/src/utils";
 
 const QUESTION_TYPE_OPTIONS = [
@@ -44,10 +47,10 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
   const router = useRouter();
   const { examTypes, fetchExamTypes } = useExamRevisionStore();
 
-  const [examTypeId, setExamTypeId] = useState(editQuestion?.examTypeSubject?.examType?.id ?? "");
-  const [subjectId, setSubjectId] = useState(editQuestion?.examTypeSubject?.subject?.id ?? "");
   const [allEts, setAllEts] = useState<IExamTypeSubject[]>([]);
-  const [resolvedEtsId, setResolvedEtsId] = useState(editQuestion?.examTypeSubjectId ?? "");
+  const [resolvedEtsId, setResolvedEtsId] = useState(
+    editQuestion?.examTypeSubjectId ?? "",
+  );
   const [topics, setTopics] = useState<ITopic[]>([]);
   const [passages, setPassages] = useState<IPassage[]>([]);
   const [options, setOptions] = useState<OptionEntry[]>(() => {
@@ -59,7 +62,9 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
   });
   const [matchPairs, setMatchPairs] = useState<MatchPair[]>(() => {
     if (editQuestion?.type === "matching" && editQuestion.correctAnswer) {
-      return Object.entries(editQuestion.correctAnswer as Record<string, string>).map(([left, right]) => ({
+      return Object.entries(
+        editQuestion.correctAnswer as Record<string, string>,
+      ).map(([left, right]) => ({
         id: uuidv4(),
         left,
         right,
@@ -71,6 +76,8 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
     ];
   });
   const [saving, setSaving] = useState(false);
+  const [loadingEts, setLoadingEts] = useState(false);
+  const etsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     control,
@@ -92,11 +99,12 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
       explanation: editQuestion?.explanation ?? "",
       topicId: editQuestion?.topicId ?? "",
       passageId: editQuestion?.passageId ?? "",
-      correctAnswerText: typeof editQuestion?.correctAnswer === "string"
-        ? (editQuestion.correctAnswer as string)
-        : Array.isArray(editQuestion?.correctAnswer)
-        ? (editQuestion.correctAnswer as string[]).join("\n")
-        : "",
+      correctAnswerText:
+        typeof editQuestion?.correctAnswer === "string"
+          ? (editQuestion.correctAnswer as string)
+          : Array.isArray(editQuestion?.correctAnswer)
+            ? (editQuestion.correctAnswer as string[]).join("\n")
+            : "",
     },
   });
 
@@ -110,22 +118,36 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load ETS when exam type changes
+  // Load ETS when exam type changes (debounced 400ms)
   useEffect(() => {
-    if (!selectedExamTypeId) return;
-    api
-      .get<{ data: IExamTypeSubject[] }>(
-        `/admin/exam-revision/exam-type-subjects?examTypeId=${selectedExamTypeId}`,
-      )
-      .then((res) => setAllEts(res.data.data))
-      .catch(() => {});
+    if (!selectedExamTypeId) {
+      setAllEts([]);
+      setLoadingEts(false);
+      return;
+    }
+    if (etsTimerRef.current) clearTimeout(etsTimerRef.current);
+    setLoadingEts(true);
+    etsTimerRef.current = setTimeout(() => {
+      api
+        .get<{ data: IExamTypeSubject[] }>(
+          `/admin/exam-revision/exam-type-subjects?examTypeId=${selectedExamTypeId}`,
+        )
+        .then((res) => setAllEts(res.data.data))
+        .catch(() => {})
+        .finally(() => setLoadingEts(false));
+    }, 400);
+    return () => {
+      if (etsTimerRef.current) clearTimeout(etsTimerRef.current);
+    };
   }, [selectedExamTypeId]);
 
   // Resolve ETS id when both examTypeId + subjectId are set
   useEffect(() => {
     if (!selectedExamTypeId || !selectedSubjectId) return;
     const match = allEts.find(
-      (e) => e.examTypeId === selectedExamTypeId && e.subjectId === selectedSubjectId,
+      (e) =>
+        e.examTypeId === selectedExamTypeId &&
+        e.subjectId === selectedSubjectId,
     );
     const etsId = match?.id ?? "";
     setResolvedEtsId(etsId);
@@ -149,7 +171,9 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
 
   // Derive category options from selected exam type
   const selectedExamType = examTypes.find((e) => e.id === selectedExamTypeId);
-  const categoryOptions = (selectedExamType?.supportedCategories ?? ["objectives"]).map((c) => ({
+  const categoryOptions = (
+    selectedExamType?.supportedCategories ?? ["objectives"]
+  ).map((c) => ({
     value: c,
     label: c.charAt(0).toUpperCase() + c.slice(1),
   }));
@@ -160,7 +184,10 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
     label: e.subject?.name ?? e.subjectId,
   }));
 
-  const examTypeOptions = examTypes.map((e) => ({ value: e.id, label: e.name }));
+  const examTypeOptions = examTypes.map((e) => ({
+    value: e.id,
+    label: e.name,
+  }));
   const topicOptions = [
     { value: "", label: "None" },
     ...topics.map((t) => ({ value: t.id, label: t.name })),
@@ -173,7 +200,10 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
   // ─── Option helpers ────────────────────────────────────────────────────────
 
   const addOption = () =>
-    setOptions((prev) => [...prev, { id: uuidv4(), text: "", isCorrect: false }]);
+    setOptions((prev) => [
+      ...prev,
+      { id: uuidv4(), text: "", isCorrect: false },
+    ]);
 
   const removeOption = (id: string) =>
     setOptions((prev) => prev.filter((o) => o.id !== id));
@@ -187,7 +217,9 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
     setOptions((prev) =>
       prev.map((o) =>
         multiSelect
-          ? o.id === id ? { ...o, isCorrect: !o.isCorrect } : o
+          ? o.id === id
+            ? { ...o, isCorrect: !o.isCorrect }
+            : o
           : { ...o, isCorrect: o.id === id },
       ),
     );
@@ -199,7 +231,11 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
   const removeMatchPair = (id: string) =>
     setMatchPairs((prev) => prev.filter((p) => p.id !== id));
 
-  const updateMatchPair = (id: string, field: "left" | "right", value: string) =>
+  const updateMatchPair = (
+    id: string,
+    field: "left" | "right",
+    value: string,
+  ) =>
     setMatchPairs((prev) =>
       prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)),
     );
@@ -216,10 +252,7 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
     try {
       // Build correctAnswer based on type
       let correctAnswer: unknown = null;
-      if (
-        data.type === "multiple_choice" ||
-        data.type === "true_false"
-      ) {
+      if (data.type === "multiple_choice" || data.type === "true_false") {
         const correct = options.find((o) => o.isCorrect);
         correctAnswer = correct?.id ?? null;
       } else if (data.type === "multiple_response") {
@@ -237,9 +270,11 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
         correctAnswer = data.correctAnswerText ?? null;
       }
 
-      const hasOptions = ["multiple_choice", "true_false", "multiple_response"].includes(
-        data.type,
-      );
+      const hasOptions = [
+        "multiple_choice",
+        "true_false",
+        "multiple_response",
+      ].includes(data.type);
 
       const payload = {
         examTypeSubjectId: data.examTypeSubjectId,
@@ -266,7 +301,7 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
         toast.success("Question created");
       }
 
-      router.push("/exam-revision");
+      router.push("/exam-revision/questions");
     } catch (error) {
       handleAxiosError(error, "Failed to save question");
     } finally {
@@ -274,9 +309,17 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
     }
   };
 
-  const showOptions = ["multiple_choice", "true_false", "multiple_response"].includes(questionType);
+  const showOptions = [
+    "multiple_choice",
+    "true_false",
+    "multiple_response",
+  ].includes(questionType);
   const showMatching = questionType === "matching";
-  const showTextAnswer = ["fill_in_the_blank", "short_answer", "essay"].includes(questionType);
+  const showTextAnswer = [
+    "fill_in_the_blank",
+    "short_answer",
+    "essay",
+  ].includes(questionType);
   const isMultiResponse = questionType === "multiple_response";
 
   return (
@@ -284,7 +327,7 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
-          onClick={() => router.push("/exam-revision")}
+          onClick={() => router.push("/exam-revision/questions")}
           className="text-[#667085] hover:text-[#344054] transition-colors"
         >
           <Icon icon="hugeicons:arrow-left-01" width={20} />
@@ -294,15 +337,22 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
             {editQuestion ? "Edit Question" : "New Question"}
           </h1>
           <p className="text-sm text-[#667085] mt-0.5">
-            {editQuestion ? "Update question details below" : "Fill in the details to create a new question"}
+            {editQuestion
+              ? "Update question details below"
+              : "Fill in the details to create a new question"}
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
         {/* Section: Scope */}
-        <div className="bg-white rounded-2xl p-6 flex flex-col gap-4" style={{ boxShadow: CARD_SHADOW }}>
-          <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">Scope</p>
+        <div
+          className="bg-white rounded-2xl p-6 flex flex-col gap-4"
+          style={{ boxShadow: CARD_SHADOW }}
+        >
+          <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">
+            Scope
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Controller
               name="examTypeId"
@@ -332,10 +382,16 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
                   {...field}
                   type="select"
                   label="Subject"
-                  placeholder={selectedExamTypeId ? "Select subject..." : "Select exam type first"}
+                  placeholder={
+                    loadingEts
+                      ? "Loading subjects…"
+                      : selectedExamTypeId
+                        ? "Select subject..."
+                        : "Select exam type first"
+                  }
                   value={field.value || null}
                   selectOptions={subjectOptions}
-                  disabled={!selectedExamTypeId}
+                  disabled={!selectedExamTypeId || loadingEts}
                   error={errors.subjectId?.message}
                   onChange={(e) => field.onChange(e.target.value)}
                 />
@@ -350,14 +406,20 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
           ) : selectedExamTypeId && selectedSubjectId ? (
             <p className="text-xs text-[#D42620] flex items-center gap-1">
               <Icon icon="hugeicons:alert-circle" width={14} />
-              No link found for this combination — link them first in the Subjects tab
+              No link found for this combination — link them first in the
+              Subjects tab
             </p>
           ) : null}
         </div>
 
         {/* Section: Question Details */}
-        <div className="bg-white rounded-2xl p-6 flex flex-col gap-4" style={{ boxShadow: CARD_SHADOW }}>
-          <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">Question Details</p>
+        <div
+          className="bg-white rounded-2xl p-6 flex flex-col gap-4"
+          style={{ boxShadow: CARD_SHADOW }}
+        >
+          <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">
+            Question Details
+          </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Controller
               name="type"
@@ -440,12 +502,17 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
 
         {/* Section: Options (MC / True-False / Multiple Response) */}
         {showOptions && (
-          <div className="bg-white rounded-2xl p-6 flex flex-col gap-4" style={{ boxShadow: CARD_SHADOW }}>
+          <div
+            className="bg-white rounded-2xl p-6 flex flex-col gap-4"
+            style={{ boxShadow: CARD_SHADOW }}
+          >
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">
                 Options
                 <span className="ml-2 text-xs font-normal text-[#667085] normal-case">
-                  {isMultiResponse ? "Tick all correct" : "Tick the correct one"}
+                  {isMultiResponse
+                    ? "Tick all correct"
+                    : "Tick the correct one"}
                 </span>
               </p>
               {questionType !== "true_false" && (
@@ -476,7 +543,9 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
                   <input
                     type="text"
                     value={opt.text}
-                    onChange={(e) => updateOption(opt.id, "text", e.target.value)}
+                    onChange={(e) =>
+                      updateOption(opt.id, "text", e.target.value)
+                    }
                     placeholder={
                       questionType === "true_false"
                         ? i === 0
@@ -503,9 +572,14 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
 
         {/* Section: Matching Pairs */}
         {showMatching && (
-          <div className="bg-white rounded-2xl p-6 flex flex-col gap-4" style={{ boxShadow: CARD_SHADOW }}>
+          <div
+            className="bg-white rounded-2xl p-6 flex flex-col gap-4"
+            style={{ boxShadow: CARD_SHADOW }}
+          >
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">Matching Pairs</p>
+              <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">
+                Matching Pairs
+              </p>
               <button
                 type="button"
                 onClick={addMatchPair}
@@ -524,15 +598,23 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
                   <input
                     type="text"
                     value={pair.left}
-                    onChange={(e) => updateMatchPair(pair.id, "left", e.target.value)}
+                    onChange={(e) =>
+                      updateMatchPair(pair.id, "left", e.target.value)
+                    }
                     placeholder="Prompt..."
                     className="flex-1 border border-[#D0D5DD] rounded-lg h-10 px-3.5 text-sm text-[#344054] outline-none focus:border-[#007FFF] transition-colors"
                   />
-                  <Icon icon="hugeicons:arrow-right-01" className="text-[#D0D5DD] shrink-0" width={16} />
+                  <Icon
+                    icon="hugeicons:arrow-right-01"
+                    className="text-[#D0D5DD] shrink-0"
+                    width={16}
+                  />
                   <input
                     type="text"
                     value={pair.right}
-                    onChange={(e) => updateMatchPair(pair.id, "right", e.target.value)}
+                    onChange={(e) =>
+                      updateMatchPair(pair.id, "right", e.target.value)
+                    }
                     placeholder="Match..."
                     className="flex-1 border border-[#D0D5DD] rounded-lg h-10 px-3.5 text-sm text-[#344054] outline-none focus:border-[#007FFF] transition-colors"
                   />
@@ -553,7 +635,10 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
 
         {/* Section: Correct Answer (text-based types) */}
         {showTextAnswer && (
-          <div className="bg-white rounded-2xl p-6 flex flex-col gap-4" style={{ boxShadow: CARD_SHADOW }}>
+          <div
+            className="bg-white rounded-2xl p-6 flex flex-col gap-4"
+            style={{ boxShadow: CARD_SHADOW }}
+          >
             <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">
               Correct Answer
               {questionType === "short_answer" && (
@@ -568,14 +653,16 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
               render={({ field }) => (
                 <InputField
                   {...field}
-                  type={questionType === "fill_in_the_blank" ? "text" : "textarea"}
+                  type={
+                    questionType === "fill_in_the_blank" ? "text" : "textarea"
+                  }
                   label={null}
                   placeholder={
                     questionType === "fill_in_the_blank"
                       ? "The exact answer..."
                       : questionType === "short_answer"
-                      ? "keyword1\nkeyword2\nkeyword3"
-                      : "Model/examiner answer..."
+                        ? "keyword1\nkeyword2\nkeyword3"
+                        : "Model/examiner answer..."
                   }
                   value={field.value ?? ""}
                   onChange={(e) => field.onChange(e.target.value)}
@@ -586,8 +673,13 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
         )}
 
         {/* Section: Explanation */}
-        <div className="bg-white rounded-2xl p-6 flex flex-col gap-4" style={{ boxShadow: CARD_SHADOW }}>
-          <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">Explanation</p>
+        <div
+          className="bg-white rounded-2xl p-6 flex flex-col gap-4"
+          style={{ boxShadow: CARD_SHADOW }}
+        >
+          <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">
+            Explanation
+          </p>
           <Controller
             name="explanation"
             control={control}
@@ -606,8 +698,13 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
         </div>
 
         {/* Section: Metadata */}
-        <div className="bg-white rounded-2xl p-6 flex flex-col gap-4" style={{ boxShadow: CARD_SHADOW }}>
-          <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">Metadata (optional)</p>
+        <div
+          className="bg-white rounded-2xl p-6 flex flex-col gap-4"
+          style={{ boxShadow: CARD_SHADOW }}
+        >
+          <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">
+            Metadata (optional)
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Controller
               name="topicId"
@@ -648,12 +745,12 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
         <div className="flex justify-end gap-3 pb-8">
           <Button
             type="button"
-            onClick={() => router.push("/exam-revision")}
-            className="!bg-white !text-[#344054] border border-[#D0D5DD]"
+            onClick={() => router.push("/exam-revision/questions")}
+            className="bg-white! text-[#344054]! border border-[#D0D5DD]"
           >
             Cancel
           </Button>
-          <Button type="submit" loading={saving} className="min-w-[140px]">
+          <Button type="submit" loading={saving} className="min-w-35">
             {editQuestion ? "Save Changes" : "Create Question"}
           </Button>
         </div>

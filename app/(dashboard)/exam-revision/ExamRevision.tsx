@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { Icon } from "@iconify/react";
@@ -12,7 +12,7 @@ import {
   AdminModule,
   IExamType,
   ISubject,
-  IExamTypeSubject,
+  IExamTypeSubjectWithStats,
   ITopic,
   IPassage,
   IQuestion,
@@ -27,7 +27,12 @@ import {
   ExamTypeValues,
   subjectSchema,
   SubjectValues,
+  topicSchema,
+  TopicValues,
+  passageSchema,
+  PassageValues,
 } from "@/src/schemas/exam-revision.schema";
+import { CheckBox } from "@/src/components/atoms/CheckBox";
 import { CARD_SHADOW, stripMarkdownPreview } from "@/src/utils";
 
 const CATEGORY_OPTIONS = [
@@ -106,6 +111,9 @@ function ExamTypesTab() {
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<IExamType | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [togglingExamTypeId, setTogglingExamTypeId] = useState<string | null>(
+    null,
+  );
 
   const {
     control,
@@ -231,17 +239,60 @@ function ExamTypesTab() {
       header: "",
       render: (r) =>
         canEdit ? (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => openEdit(r)}
-              className="text-xs text-[#007FFF] hover:underline"
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors"
             >
               Edit
             </button>
-            <span className="text-[#D0D5DD]">|</span>
+            <button
+              onClick={async () => {
+                setTogglingExamTypeId(r.id);
+                await updateExamType(r.id, { isActive: !r.isActive }, () => {});
+                setTogglingExamTypeId(null);
+              }}
+              disabled={
+                togglingExamTypeId === r.id ||
+                (r.isActive && (r.etsCount ?? 0) > 0)
+              }
+              title={
+                r.isActive && (r.etsCount ?? 0) > 0
+                  ? `Cannot deactivate: ${r.etsCount} subject link(s) still attached`
+                  : undefined
+              }
+              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 ${
+                r.isActive
+                  ? "border-[#F3A218] text-[#F3A218] hover:bg-[#FFFBEB]"
+                  : "border-[#099137] text-[#099137] hover:bg-[#F0FBF3]"
+              }`}
+            >
+              {r.isActive ? "Deactivate" : "Activate"}
+              {togglingExamTypeId === r.id && (
+                <svg
+                  className="animate-spin w-3 h-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
+                  />
+                </svg>
+              )}
+            </button>
             <button
               onClick={() => setDeleteTarget(r)}
-              className="text-xs text-[#D42620] hover:underline"
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
             >
               Delete
             </button>
@@ -279,7 +330,10 @@ function ExamTypesTab() {
           pagination
           metaData={{
             currentPage: (examTypesPage - 1) * 50 + 1,
-            endPage: examTypesTotal > examTypesPage * 50 ? examTypesPage * 50 + 1 : (examTypesPage - 1) * 50 + 1,
+            endPage:
+              examTypesTotal > examTypesPage * 50
+                ? examTypesPage * 50 + 1
+                : (examTypesPage - 1) * 50 + 1,
             totalRecords: examTypesTotal,
             onPageChange: (skip) => fetchExamTypes(Math.floor(skip / 50) + 1),
           }}
@@ -448,23 +502,33 @@ function ExamTypesTab() {
 function SubjectsTab() {
   const {
     subjects,
+    subjectsAll,
     subjectsTotal,
     subjectsPage,
     subjectsSearch,
     loadingSubjects,
     setSubjectsSearch,
     fetchSubjects,
+    fetchAllSubjectsForSelect,
     createSubject,
     updateSubject,
     deleteSubject,
     examTypes,
-    loadingExamTypes,
     fetchExamTypes,
-    examTypeSubjects,
-    loadingEts,
-    fetchExamTypeSubjects,
     linkExamTypeSubject,
     unlinkExamTypeSubject,
+    updateEts,
+    etsAll,
+    etsAllTotal,
+    etsAllPage,
+    etsAllSearch,
+    etsAllExamTypeFilter,
+    etsAllSubjectFilter,
+    loadingEtsAll,
+    setEtsAllSearch,
+    setEtsAllExamTypeFilter,
+    setEtsAllSubjectFilter,
+    fetchAllEts,
   } = useExamRevisionStore();
   const { canWrite } = useAdminAuthStore();
   const canEdit = canWrite(AdminModule.EXAM_REVISION);
@@ -479,8 +543,17 @@ function SubjectsTab() {
     open: boolean;
     examTypeId: string;
     subjectId: string;
-  }>({ open: false, examTypeId: "", subjectId: "" });
-  const [selectedEtForLinks, setSelectedEtForLinks] = useState("");
+    isCompulsory: boolean;
+  }>({ open: false, examTypeId: "", subjectId: "", isCompulsory: false });
+  const [etsFilterOpen, setEtsFilterOpen] = useState(false);
+  const [etsPendingExamType, setEtsPendingExamType] = useState("");
+  const [etsPendingSubject, setEtsPendingSubject] = useState("");
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
+  const [togglingEtsId, setTogglingEtsId] = useState<string | null>(null);
+  const [togglingSubjectId, setTogglingSubjectId] = useState<string | null>(
+    null,
+  );
 
   const {
     control,
@@ -489,25 +562,39 @@ function SubjectsTab() {
     formState: { errors, isSubmitting },
   } = useForm<SubjectValues>({
     resolver: yupResolver(subjectSchema),
-    defaultValues: { name: "", description: "" },
+    defaultValues: { name: "", description: "", isActive: true },
   });
 
   useEffect(() => {
     fetchSubjects();
     fetchExamTypes();
+    fetchAllSubjectsForSelect();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [subTab, setSubTab] = useState<"subjects" | "links">("subjects");
+  const subTabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [subPillStyle, setSubPillStyle] = useState({ left: 4, width: 80 });
+
+  useLayoutEffect(() => {
+    const el = subTabRefs.current[subTab === "subjects" ? 0 : 1];
+    if (el) setSubPillStyle({ left: el.offsetLeft, width: el.offsetWidth });
+  }, [subTab]);
+
   useEffect(() => {
-    if (selectedEtForLinks) fetchExamTypeSubjects(selectedEtForLinks);
+    if (subTab === "links") void fetchAllEts(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEtForLinks]);
+  }, [subTab]);
 
   const openCreate = () => {
-    reset({ name: "", description: "" });
+    reset({ name: "", description: "", isActive: true });
     setModal({ open: true, item: null });
   };
   const openEdit = (item: ISubject) => {
-    reset({ name: item.name, description: item.description ?? "" });
+    reset({
+      name: item.name,
+      description: item.description ?? "",
+      isActive: item.isActive,
+    });
     setModal({ open: true, item });
   };
   const closeModal = () => {
@@ -523,7 +610,9 @@ function SubjectsTab() {
     }
   };
 
-  const subjectSelectOptions = subjects.map((s) => ({
+  const subjectSelectOptions = (
+    subjectsAll.length ? subjectsAll : subjects
+  ).map((s) => ({
     value: s.id,
     label: s.name,
   }));
@@ -569,17 +658,60 @@ function SubjectsTab() {
       header: "",
       render: (r) =>
         canEdit ? (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => openEdit(r)}
-              className="text-xs text-[#007FFF] hover:underline"
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors"
             >
               Edit
             </button>
-            <span className="text-[#D0D5DD]">|</span>
+            <button
+              onClick={async () => {
+                setTogglingSubjectId(r.id);
+                await updateSubject(r.id, { isActive: !r.isActive }, () => {});
+                setTogglingSubjectId(null);
+              }}
+              disabled={
+                togglingSubjectId === r.id ||
+                (r.isActive && (r.etsCount ?? 0) > 0)
+              }
+              title={
+                r.isActive && (r.etsCount ?? 0) > 0
+                  ? `Cannot deactivate: ${r.etsCount} exam type link(s) still attached`
+                  : undefined
+              }
+              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 ${
+                r.isActive
+                  ? "border-[#F3A218] text-[#F3A218] hover:bg-[#FFFBEB]"
+                  : "border-[#099137] text-[#099137] hover:bg-[#F0FBF3]"
+              }`}
+            >
+              {r.isActive ? "Deactivate" : "Activate"}
+              {togglingSubjectId === r.id && (
+                <svg
+                  className="animate-spin w-3 h-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
+                  />
+                </svg>
+              )}
+            </button>
             <button
               onClick={() => setDeleteTarget(r)}
-              className="text-xs text-[#D42620] hover:underline"
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
             >
               Delete
             </button>
@@ -588,13 +720,22 @@ function SubjectsTab() {
     },
   ];
 
-  const etsColumns: Column<IExamTypeSubject>[] = [
+  const etsColumns: Column<IExamTypeSubjectWithStats>[] = [
     {
       key: "subject",
       header: "Subject",
       render: (r) => (
         <span className="text-sm font-medium text-[#101828]">
-          {r.subject?.name}
+          {r.subject?.name ?? "—"}
+        </span>
+      ),
+    },
+    {
+      key: "examType",
+      header: "Exam Type",
+      render: (r) => (
+        <span className="text-sm text-[#344054]">
+          {r.examType?.name ?? "—"}
         </span>
       ),
     },
@@ -609,34 +750,128 @@ function SubjectsTab() {
       ),
     },
     {
-      key: "unlink",
+      key: "questionCount",
+      header: "Questions",
+      render: (r) => (
+        <span className="text-sm text-[#344054]">{r.questionCount}</span>
+      ),
+    },
+    {
+      key: "passageCount",
+      header: "Passages",
+      render: (r) => (
+        <span className="text-sm text-[#344054]">{r.passageCount}</span>
+      ),
+    },
+    {
+      key: "actions",
       header: "",
       render: (r) =>
         canEdit ? (
-          <button
-            onClick={() => unlinkExamTypeSubject(r.id)}
-            className="text-xs text-[#D42620] hover:underline"
-          >
-            Unlink
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                setTogglingEtsId(r.id);
+                await updateEts(r.id, { isCompulsory: !r.isCompulsory });
+                setTogglingEtsId(null);
+              }}
+              disabled={togglingEtsId === r.id || unlinkingId === r.id}
+              title={r.isCompulsory ? "Mark as optional" : "Mark as compulsory"}
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+            >
+              {togglingEtsId === r.id && (
+                <svg
+                  className="animate-spin w-3 h-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
+                  />
+                </svg>
+              )}
+              {r.isCompulsory ? "Optional" : "Compulsory"}
+            </button>
+            <button
+              onClick={async () => {
+                setUnlinkingId(r.id);
+                await unlinkExamTypeSubject(r.id);
+                setUnlinkingId(null);
+              }}
+              disabled={
+                r.questionCount > 0 ||
+                r.passageCount > 0 ||
+                unlinkingId === r.id
+              }
+              title={
+                r.questionCount > 0 || r.passageCount > 0
+                  ? `Cannot unlink: ${r.questionCount} question(s), ${r.passageCount} passage(s)`
+                  : undefined
+              }
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent flex items-center gap-1"
+            >
+              {unlinkingId === r.id && (
+                <svg
+                  className="animate-spin w-3 h-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
+                  />
+                </svg>
+              )}
+              Unlink
+            </button>
+          </div>
         ) : null,
     },
   ];
 
-  const [subTab, setSubTab] = useState<"subjects" | "links">("subjects");
-
   return (
     <>
       {/* Sub-tab switcher */}
-      <div className="bg-white rounded-2xl p-1 flex gap-1 w-fit" style={{ boxShadow: CARD_SHADOW }}>
-        {(["subjects", "links"] as const).map((t) => (
+      <div className="relative flex bg-[#F9FAFB] p-1 rounded-xl w-fit border border-[#F0F2F5]">
+        <div
+          className="absolute top-1 bottom-1 rounded-lg bg-white shadow-sm"
+          style={{
+            left: `${subPillStyle.left}px`,
+            width: `${subPillStyle.width}px`,
+            transition:
+              "left 300ms cubic-bezier(0.34, 1.56, 0.64, 1), width 300ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+          }}
+        />
+        {(["subjects", "links"] as const).map((t, i) => (
           <button
             key={t}
+            ref={(el) => {
+              subTabRefs.current[i] = el;
+            }}
             onClick={() => setSubTab(t)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+            className={`relative z-10 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
               subTab === t
-                ? "bg-[#007FFF] text-white shadow-sm"
-                : "text-[#667085] hover:text-[#344054] hover:bg-[#F9FAFB]"
+                ? "text-[#101828]"
+                : "text-[#667085] hover:text-[#344054]"
             }`}
           >
             {t === "subjects" ? "Subjects" : "Exam Type Links"}
@@ -672,7 +907,10 @@ function SubjectsTab() {
             pagination
             metaData={{
               currentPage: (subjectsPage - 1) * 50 + 1,
-              endPage: subjectsTotal > subjectsPage * 50 ? subjectsPage * 50 + 1 : (subjectsPage - 1) * 50 + 1,
+              endPage:
+                subjectsTotal > subjectsPage * 50
+                  ? subjectsPage * 50 + 1
+                  : (subjectsPage - 1) * 50 + 1,
               totalRecords: subjectsTotal,
               onPageChange: (skip) => fetchSubjects(Math.floor(skip / 50) + 1),
             }}
@@ -681,42 +919,156 @@ function SubjectsTab() {
       )}
 
       {subTab === "links" && (
-        <div className="bg-white rounded-2xl" style={{ boxShadow: CARD_SHADOW }}>
-          <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F2F5]">
-            <div>
-              <p className="font-semibold text-[#101828]">Exam Type / Subject Links</p>
-              <p className="text-sm text-[#667085]">Filter by exam type to view and manage subject assignments</p>
-            </div>
-            {canEdit && selectedEtForLinks && (
+        <TabCard
+          title="Exam Type Links"
+          subtitle={`${etsAllTotal} links`}
+          action={
+            canEdit ? (
               <Button
-                onClick={() => setLinkModal({ open: true, examTypeId: selectedEtForLinks, subjectId: "" })}
+                onClick={() =>
+                  setLinkModal({
+                    open: true,
+                    examTypeId: "",
+                    subjectId: "",
+                    isCompulsory: false,
+                  })
+                }
                 className="flex items-center gap-2"
               >
                 <Icon icon="hugeicons:link-01" width={16} /> Link Subject
               </Button>
+            ) : undefined
+          }
+        >
+          {/* Filter bar */}
+          <div className="px-6 py-3 border-b border-[#F0F2F5] flex items-center gap-3 flex-wrap">
+            <button
+              onClick={() => setEtsFilterOpen((o) => !o)}
+              className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-colors ${
+                etsFilterOpen || etsAllExamTypeFilter || etsAllSubjectFilter
+                  ? "border-[#007FFF] text-[#007FFF] bg-[#E5F0FF]"
+                  : "border-[#D0D5DD] text-[#344054] bg-white hover:bg-[#F9FAFB]"
+              }`}
+            >
+              <Icon icon="hugeicons:filter" width={14} />
+              Filters
+              {(etsAllExamTypeFilter || etsAllSubjectFilter) && (
+                <span className="ml-1 bg-[#007FFF] text-white text-[0.6rem] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {
+                    [etsAllExamTypeFilter, etsAllSubjectFilter].filter(Boolean)
+                      .length
+                  }
+                </span>
+              )}
+            </button>
+            {etsAllExamTypeFilter && (
+              <span className="flex items-center gap-1 text-xs bg-[#F0F2F5] text-[#344054] px-2 py-1 rounded-full">
+                {examTypes.find((e) => e.id === etsAllExamTypeFilter)?.name ??
+                  "Exam Type"}
+                <button
+                  onClick={() => {
+                    setEtsAllExamTypeFilter("");
+                    setEtsPendingExamType("");
+                    void fetchAllEts(1);
+                  }}
+                  className="hover:text-[#D42620]"
+                >
+                  <Icon icon="hugeicons:cancel-01" width={10} />
+                </button>
+              </span>
+            )}
+            {etsAllSubjectFilter && (
+              <span className="flex items-center gap-1 text-xs bg-[#F0F2F5] text-[#344054] px-2 py-1 rounded-full">
+                {subjects.find((s) => s.id === etsAllSubjectFilter)?.name ??
+                  "Subject"}
+                <button
+                  onClick={() => {
+                    setEtsAllSubjectFilter("");
+                    setEtsPendingSubject("");
+                    void fetchAllEts(1);
+                  }}
+                  className="hover:text-[#D42620]"
+                >
+                  <Icon icon="hugeicons:cancel-01" width={10} />
+                </button>
+              </span>
             )}
           </div>
-          <div className="px-6 py-4 border-b border-[#F0F2F5]">
-            <InputField
-              type="select"
-              label={null}
-              placeholder="Select an exam type to view its subjects..."
-              value={selectedEtForLinks || null}
-              selectOptions={etSelectOptions}
-              onChange={(e) => setSelectedEtForLinks(e.target.value as string)}
-            />
-          </div>
-          {selectedEtForLinks && (
-            <DataTable
-              columns={etsColumns}
-              data={examTypeSubjects}
-              loading={loadingEts}
-              keyExtractor={(r) => r.id}
-              emptyMessage="No subjects linked to this exam type"
-              shouldNotHaveBorder
-            />
+
+          {/* Collapsible filter panel */}
+          {etsFilterOpen && (
+            <div className="px-6 py-4 border-b border-[#F0F2F5] bg-[#F9FAFB] grid grid-cols-1 md:grid-cols-3 gap-3">
+              <InputField
+                type="select"
+                label="Exam Type"
+                placeholder="Any..."
+                value={etsPendingExamType || null}
+                selectOptions={etSelectOptions}
+                onChange={(e) =>
+                  setEtsPendingExamType(e.target.value as string)
+                }
+              />
+              <InputField
+                type="select"
+                label="Subject"
+                placeholder="Any..."
+                value={etsPendingSubject || null}
+                selectOptions={subjectSelectOptions}
+                onChange={(e) => setEtsPendingSubject(e.target.value as string)}
+              />
+              <div className="md:col-span-3 flex gap-2 justify-end">
+                <Button
+                  onClick={() => {
+                    setEtsPendingExamType("");
+                    setEtsPendingSubject("");
+                    setEtsAllExamTypeFilter("");
+                    setEtsAllSubjectFilter("");
+                    void fetchAllEts(1);
+                    setEtsFilterOpen(false);
+                  }}
+                  className="bg-white! text-[#344054]! border border-[#D0D5DD]"
+                >
+                  Reset
+                </Button>
+                <Button
+                  onClick={() => {
+                    setEtsAllExamTypeFilter(etsPendingExamType);
+                    setEtsAllSubjectFilter(etsPendingSubject);
+                    void fetchAllEts(1);
+                    setEtsFilterOpen(false);
+                  }}
+                >
+                  Apply Filters
+                </Button>
+              </div>
+            </div>
           )}
-        </div>
+
+          <DataTable
+            columns={etsColumns}
+            data={etsAll}
+            loading={loadingEtsAll}
+            keyExtractor={(r) => r.id}
+            emptyMessage="No exam type / subject links yet"
+            shouldNotHaveBorder
+            searchProps={{
+              value: etsAllSearch,
+              onChange: setEtsAllSearch,
+              onSearch: () => fetchAllEts(1),
+              placeholder: "Search by exam type or subject...",
+            }}
+            pagination
+            metaData={{
+              currentPage: (etsAllPage - 1) * 50 + 1,
+              endPage:
+                etsAllTotal > etsAllPage * 50
+                  ? etsAllPage * 50 + 1
+                  : (etsAllPage - 1) * 50 + 1,
+              totalRecords: etsAllTotal,
+              onPageChange: (skip) => fetchAllEts(Math.floor(skip / 50) + 1),
+            }}
+          />
+        </TabCard>
       )}
 
       {/* Subject/Create modals */}
@@ -761,6 +1113,21 @@ function SubjectsTab() {
               />
             )}
           />
+          {modal.item && (
+            <Controller
+              name="isActive"
+              control={control}
+              render={({ field }) => (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <CheckBox
+                    value={!!field.value}
+                    onChange={() => field.onChange(!field.value)}
+                  />
+                  <span className="text-sm text-[#344054]">Active</span>
+                </label>
+              )}
+            />
+          )}
           <div className="flex gap-3">
             <Button
               type="button"
@@ -780,42 +1147,99 @@ function SubjectsTab() {
       <Modal
         isOpen={linkModal.open}
         onClose={() =>
-          setLinkModal({ open: false, examTypeId: "", subjectId: "" })
+          setLinkModal({
+            open: false,
+            examTypeId: "",
+            subjectId: "",
+            isCompulsory: false,
+          })
         }
         className="w-full max-w-sm rounded-2xl p-6"
       >
         <p className="text-lg font-semibold text-[#101828] mb-4">
           Link Subject
         </p>
-        <InputField
-          type="select"
-          label="Subject"
-          placeholder="Select subject..."
-          value={linkModal.subjectId || null}
-          selectOptions={subjectSelectOptions}
-          onChange={(e) =>
-            setLinkModal((p) => ({ ...p, subjectId: e.target.value as string }))
-          }
-        />
+        <div className="flex flex-col gap-4">
+          <InputField
+            type="select"
+            label="Exam Type"
+            placeholder="Select exam type..."
+            value={linkModal.examTypeId || null}
+            selectOptions={etSelectOptions}
+            onChange={(e) =>
+              setLinkModal((p) => ({
+                ...p,
+                examTypeId: e.target.value as string,
+              }))
+            }
+          />
+          <InputField
+            type="select"
+            label="Subject"
+            placeholder="Select subject..."
+            value={linkModal.subjectId || null}
+            selectOptions={subjectSelectOptions}
+            onChange={(e) =>
+              setLinkModal((p) => ({
+                ...p,
+                subjectId: e.target.value as string,
+              }))
+            }
+          />
+          <div className="flex flex-col gap-1">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <CheckBox
+                value={linkModal.isCompulsory}
+                onChange={() =>
+                  setLinkModal((p) => ({ ...p, isCompulsory: !p.isCompulsory }))
+                }
+              />
+              <div>
+                <p className="text-sm font-medium text-[#344054]">
+                  Compulsory subject
+                </p>
+                <p className="text-xs text-[#667085] mt-0.5">
+                  Compulsory subjects are mandatory for all students in this
+                  exam type — they cannot deselect it when choosing subjects.
+                  Example: English Language is compulsory for JAMB.
+                </p>
+              </div>
+            </label>
+          </div>
+        </div>
         <div className="flex gap-3 mt-4">
           <Button
             onClick={() =>
-              setLinkModal({ open: false, examTypeId: "", subjectId: "" })
+              setLinkModal({
+                open: false,
+                examTypeId: "",
+                subjectId: "",
+                isCompulsory: false,
+              })
             }
             className="flex-1 !bg-white !text-[#344054] border border-[#D0D5DD]"
           >
             Cancel
           </Button>
           <Button
+            disabled={!linkModal.examTypeId || !linkModal.subjectId}
+            loading={linkLoading}
             onClick={async () => {
-              if (!linkModal.subjectId) return;
+              if (!linkModal.examTypeId || !linkModal.subjectId) return;
+              setLinkLoading(true);
               await linkExamTypeSubject(
                 linkModal.examTypeId,
                 linkModal.subjectId,
-                false,
+                linkModal.isCompulsory,
                 () =>
-                  setLinkModal({ open: false, examTypeId: "", subjectId: "" }),
+                  setLinkModal({
+                    open: false,
+                    examTypeId: "",
+                    subjectId: "",
+                    isCompulsory: false,
+                  }),
               );
+              setLinkLoading(false);
             }}
             className="flex-1"
           >
@@ -873,23 +1297,46 @@ function TopicsTab() {
     setTopicSubjectFilter,
     setTopicsSearch,
     fetchTopics,
+    createTopic,
+    updateTopic,
     deleteTopic,
     subjects,
+    subjectsAll,
     fetchSubjects,
+    fetchAllSubjectsForSelect,
   } = useExamRevisionStore();
+  const [togglingTopicId, setTogglingTopicId] = useState<string | null>(null);
   const { canWrite } = useAdminAuthStore();
   const canEdit = canWrite(AdminModule.EXAM_REVISION);
-  const router = useRouter();
 
   const [deleteTarget, setDeleteTarget] = useState<ITopic | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [pendingSubject, setPendingSubject] = useState("");
+  const [topicDrawer, setTopicDrawer] = useState<{
+    open: boolean;
+    topic: ITopic | null;
+  }>({ open: false, topic: null });
+
+  const {
+    control: topicControl,
+    handleSubmit: handleTopicSubmit,
+    reset: resetTopicForm,
+    formState: { errors: topicErrors, isSubmitting: topicSubmitting },
+  } = useForm<TopicValues>({
+    resolver: yupResolver(topicSchema),
+    defaultValues: { subjectId: "", name: "", content: "" },
+  });
 
   useEffect(() => {
     fetchSubjects();
     fetchTopics();
+    fetchAllSubjectsForSelect();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const subjectOptions = subjects.map((s) => ({ value: s.id, label: s.name }));
+  const subjectOptions = (subjectsAll.length ? subjectsAll : subjects).map(
+    (s) => ({ value: s.id, label: s.name }),
+  );
 
   const columns: Column<ITopic>[] = [
     {
@@ -931,17 +1378,59 @@ function TopicsTab() {
       header: "",
       render: (r) =>
         canEdit ? (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => router.push(`/exam-revision/topics/${r.id}/edit`)}
-              className="text-xs text-[#007FFF] hover:underline"
+              onClick={() => {
+                resetTopicForm({
+                  subjectId: r.subjectId ?? "",
+                  name: r.name,
+                  content: r.content ?? "",
+                });
+                setTopicDrawer({ open: true, topic: r });
+              }}
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors"
             >
               Edit
             </button>
-            <span className="text-[#D0D5DD]">|</span>
+            <button
+              onClick={async () => {
+                setTogglingTopicId(r.id);
+                await updateTopic(r.id, { isActive: !r.isActive }, () => {});
+                setTogglingTopicId(null);
+              }}
+              disabled={togglingTopicId === r.id}
+              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 ${
+                r.isActive
+                  ? "border-[#F3A218] text-[#F3A218] hover:bg-[#FFFBEB]"
+                  : "border-[#099137] text-[#099137] hover:bg-[#F0FBF3]"
+              }`}
+            >
+              {r.isActive ? "Deactivate" : "Activate"}
+              {togglingTopicId === r.id && (
+                <svg
+                  className="animate-spin w-3 h-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
+                  />
+                </svg>
+              )}
+            </button>
             <button
               onClick={() => setDeleteTarget(r)}
-              className="text-xs text-[#D42620] hover:underline"
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
             >
               Delete
             </button>
@@ -958,7 +1447,10 @@ function TopicsTab() {
         action={
           canEdit ? (
             <Button
-              onClick={() => router.push("/exam-revision/topics/new")}
+              onClick={() => {
+                resetTopicForm({ subjectId: "", name: "", content: "" });
+                setTopicDrawer({ open: true, topic: null });
+              }}
               className="flex items-center gap-2"
             >
               <Icon icon="hugeicons:add-01" width={16} /> Add Topic
@@ -966,33 +1458,75 @@ function TopicsTab() {
           ) : undefined
         }
       >
-        <div className="px-6 py-3 border-b border-[#F0F2F5] flex items-center gap-3">
-          <div className="flex-1 max-w-xs">
-            <InputField
-              type="select"
-              label={null}
-              placeholder="Filter by subject..."
-              value={selectedTopicSubjectId || null}
-              selectOptions={subjectOptions}
-              onChange={(e) => {
-                setTopicSubjectFilter(e.target.value as string);
-                fetchTopics(1);
-              }}
-            />
-          </div>
+        <div className="px-6 py-3 border-b border-[#F0F2F5] flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => setFilterOpen((o) => !o)}
+            className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-colors ${
+              filterOpen || selectedTopicSubjectId
+                ? "border-[#007FFF] text-[#007FFF] bg-[#E5F0FF]"
+                : "border-[#D0D5DD] text-[#344054] bg-white hover:bg-[#F9FAFB]"
+            }`}
+          >
+            <Icon icon="hugeicons:filter" width={14} />
+            Filters
+            {selectedTopicSubjectId && (
+              <span className="ml-1 bg-[#007FFF] text-white text-[0.6rem] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                1
+              </span>
+            )}
+          </button>
           {selectedTopicSubjectId && (
-            <button
-              onClick={() => {
-                setTopicSubjectFilter("");
-                fetchTopics(1);
-              }}
-              className="flex items-center gap-1 text-xs text-[#667085] hover:text-[#344054] shrink-0"
-            >
-              <Icon icon="hugeicons:filter-remove" width={14} />
-              Clear filter
-            </button>
+            <span className="flex items-center gap-1 text-xs bg-[#F0F2F5] text-[#344054] px-2 py-1 rounded-full">
+              {subjectOptions.find((o) => o.value === selectedTopicSubjectId)
+                ?.label ?? "Subject"}
+              <button
+                onClick={() => {
+                  setPendingSubject("");
+                  setTopicSubjectFilter("");
+                  fetchTopics(1);
+                }}
+                className="hover:text-[#D42620]"
+              >
+                <Icon icon="hugeicons:cancel-01" width={10} />
+              </button>
+            </span>
           )}
         </div>
+
+        {filterOpen && (
+          <div className="px-6 py-4 border-b border-[#F0F2F5] bg-[#F9FAFB] grid grid-cols-1 md:grid-cols-3 gap-3">
+            <InputField
+              type="select"
+              label="Subject"
+              placeholder="Any..."
+              value={pendingSubject || null}
+              selectOptions={subjectOptions}
+              onChange={(e) => setPendingSubject(e.target.value as string)}
+            />
+            <div className="md:col-span-2 flex gap-2 items-end justify-end">
+              <Button
+                onClick={() => {
+                  setPendingSubject("");
+                  setTopicSubjectFilter("");
+                  fetchTopics(1);
+                  setFilterOpen(false);
+                }}
+                className="bg-white! text-[#344054]! border border-[#D0D5DD]"
+              >
+                Reset
+              </Button>
+              <Button
+                onClick={() => {
+                  setTopicSubjectFilter(pendingSubject);
+                  fetchTopics(1);
+                  setFilterOpen(false);
+                }}
+              >
+                Apply Filters
+              </Button>
+            </div>
+          </div>
+        )}
         <DataTable
           columns={columns}
           data={topics}
@@ -1009,7 +1543,10 @@ function TopicsTab() {
           pagination
           metaData={{
             currentPage: (topicsPage - 1) * 50 + 1,
-            endPage: topicsTotal > topicsPage * 50 ? topicsPage * 50 + 1 : (topicsPage - 1) * 50 + 1,
+            endPage:
+              topicsTotal > topicsPage * 50
+                ? topicsPage * 50 + 1
+                : (topicsPage - 1) * 50 + 1,
             totalRecords: topicsTotal,
             onPageChange: (skip) => fetchTopics(Math.floor(skip / 50) + 1),
           }}
@@ -1048,6 +1585,123 @@ function TopicsTab() {
           </Button>
         </div>
       </Modal>
+
+      {/* Topic Drawer */}
+      {topicDrawer.open && (
+        <div className="fixed inset-0 z-40">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setTopicDrawer({ open: false, topic: null })}
+          />
+          <div className="absolute right-0 top-0 h-full w-[720px] bg-white flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#EAECF0]">
+              <div>
+                <p className="font-semibold text-[#101828]">
+                  {topicDrawer.topic ? "Edit Topic" : "New Topic"}
+                </p>
+                {topicDrawer.topic?.subject && (
+                  <p className="text-sm text-[#667085]">
+                    Subject: {topicDrawer.topic.subject.name}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setTopicDrawer({ open: false, topic: null })}
+                className="text-[#667085]"
+              >
+                <Icon icon="hugeicons:cancel-01" width={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              <form
+                id="topic-drawer-form"
+                onSubmit={handleTopicSubmit(async (data) => {
+                  if (topicDrawer.topic) {
+                    await updateTopic(
+                      topicDrawer.topic.id,
+                      { name: data.name, content: data.content ?? "" },
+                      () => setTopicDrawer({ open: false, topic: null }),
+                    );
+                  } else {
+                    await createTopic(
+                      {
+                        subjectId: data.subjectId,
+                        name: data.name,
+                        content: data.content ?? "",
+                      },
+                      () => setTopicDrawer({ open: false, topic: null }),
+                    );
+                  }
+                })}
+                className="flex flex-col gap-5"
+              >
+                {!topicDrawer.topic && (
+                  <Controller
+                    name="subjectId"
+                    control={topicControl}
+                    render={({ field }) => (
+                      <InputField
+                        {...field}
+                        type="select"
+                        label="Subject"
+                        placeholder="Select subject..."
+                        value={field.value || null}
+                        selectOptions={subjectOptions}
+                        error={topicErrors.subjectId?.message}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    )}
+                  />
+                )}
+                <Controller
+                  name="name"
+                  control={topicControl}
+                  render={({ field }) => (
+                    <InputField
+                      {...field}
+                      label="Topic Name"
+                      placeholder="e.g. Differentiation"
+                      error={topicErrors.name?.message}
+                      onChange={(e) => field.onChange(e.target.value)}
+                    />
+                  )}
+                />
+                <Controller
+                  name="content"
+                  control={topicControl}
+                  render={({ field }) => (
+                    <InputField
+                      {...field}
+                      type="rich-text"
+                      label="Content"
+                      value={field.value ?? ""}
+                      richTextProps={{ minHeight: "400px" }}
+                      onChange={(e) => field.onChange(e.target.value)}
+                    />
+                  )}
+                />
+              </form>
+            </div>
+            <div className="px-6 py-4 border-t border-[#EAECF0] flex gap-3">
+              <Button
+                type="button"
+                onClick={() => setTopicDrawer({ open: false, topic: null })}
+                className="flex-1 !bg-white !text-[#344054] border border-[#D0D5DD]"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="topic-drawer-form"
+                loading={topicSubmitting}
+                className="flex-1"
+              >
+                {topicDrawer.topic ? "Save Changes" : "Create Topic"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -1065,16 +1719,36 @@ function PassagesTab() {
     setPassageEtsFilter,
     setPassagesSearch,
     fetchPassages,
+    createPassage,
+    updatePassage,
     deletePassage,
     examTypeSubjects,
     fetchExamTypeSubjects,
   } = useExamRevisionStore();
+  const [togglingPassageId, setTogglingPassageId] = useState<string | null>(
+    null,
+  );
   const { canWrite } = useAdminAuthStore();
   const canEdit = canWrite(AdminModule.EXAM_REVISION);
-  const router = useRouter();
 
   const [deleteTarget, setDeleteTarget] = useState<IPassage | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [pendingEts, setPendingEts] = useState("");
+  const [passageDrawer, setPassageDrawer] = useState<{
+    open: boolean;
+    passage: IPassage | null;
+  }>({ open: false, passage: null });
+
+  const {
+    control: passageControl,
+    handleSubmit: handlePassageSubmit,
+    reset: resetPassageForm,
+    formState: { errors: passageErrors, isSubmitting: passageSubmitting },
+  } = useForm<PassageValues>({
+    resolver: yupResolver(passageSchema),
+    defaultValues: { examTypeSubjectId: "", title: "", content: "" },
+  });
 
   useEffect(() => {
     fetchExamTypeSubjects();
@@ -1119,19 +1793,59 @@ function PassagesTab() {
       header: "",
       render: (r) =>
         canEdit ? (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() =>
-                router.push(`/exam-revision/passages/${r.id}/edit`)
-              }
-              className="text-xs text-[#007FFF] hover:underline"
+              onClick={() => {
+                resetPassageForm({
+                  examTypeSubjectId: r.examTypeSubjectId ?? "",
+                  title: r.title,
+                  content: r.content ?? "",
+                });
+                setPassageDrawer({ open: true, passage: r });
+              }}
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors"
             >
               Edit
             </button>
-            <span className="text-[#D0D5DD]">|</span>
+            <button
+              onClick={async () => {
+                setTogglingPassageId(r.id);
+                await updatePassage(r.id, { isActive: !r.isActive }, () => {});
+                setTogglingPassageId(null);
+              }}
+              disabled={togglingPassageId === r.id}
+              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 ${
+                r.isActive
+                  ? "border-[#F3A218] text-[#F3A218] hover:bg-[#FFFBEB]"
+                  : "border-[#099137] text-[#099137] hover:bg-[#F0FBF3]"
+              }`}
+            >
+              {r.isActive ? "Deactivate" : "Activate"}
+              {togglingPassageId === r.id && (
+                <svg
+                  className="animate-spin w-3 h-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
+                  />
+                </svg>
+              )}
+            </button>
             <button
               onClick={() => setDeleteTarget(r)}
-              className="text-xs text-[#D42620] hover:underline"
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
             >
               Delete
             </button>
@@ -1148,7 +1862,14 @@ function PassagesTab() {
         action={
           canEdit ? (
             <Button
-              onClick={() => router.push("/exam-revision/passages/new")}
+              onClick={() => {
+                resetPassageForm({
+                  examTypeSubjectId: "",
+                  title: "",
+                  content: "",
+                });
+                setPassageDrawer({ open: true, passage: null });
+              }}
               className="flex items-center gap-2"
             >
               <Icon icon="hugeicons:add-01" width={16} /> Add Passage
@@ -1156,33 +1877,75 @@ function PassagesTab() {
           ) : undefined
         }
       >
-        <div className="px-6 py-3 border-b border-[#F0F2F5] flex items-center gap-3">
-          <div className="flex-1 max-w-xs">
-            <InputField
-              type="select"
-              label={null}
-              placeholder="Filter by Exam Type / Subject..."
-              value={selectedPassageEtsId || null}
-              selectOptions={etsOptions}
-              onChange={(e) => {
-                setPassageEtsFilter(e.target.value as string);
-                fetchPassages(1);
-              }}
-            />
-          </div>
+        <div className="px-6 py-3 border-b border-[#F0F2F5] flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => setFilterOpen((o) => !o)}
+            className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-colors ${
+              filterOpen || selectedPassageEtsId
+                ? "border-[#007FFF] text-[#007FFF] bg-[#E5F0FF]"
+                : "border-[#D0D5DD] text-[#344054] bg-white hover:bg-[#F9FAFB]"
+            }`}
+          >
+            <Icon icon="hugeicons:filter" width={14} />
+            Filters
+            {selectedPassageEtsId && (
+              <span className="ml-1 bg-[#007FFF] text-white text-[0.6rem] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                1
+              </span>
+            )}
+          </button>
           {selectedPassageEtsId && (
-            <button
-              onClick={() => {
-                setPassageEtsFilter("");
-                fetchPassages(1);
-              }}
-              className="flex items-center gap-1 text-xs text-[#667085] hover:text-[#344054] shrink-0"
-            >
-              <Icon icon="hugeicons:filter-remove" width={14} />
-              Clear filter
-            </button>
+            <span className="flex items-center gap-1 text-xs bg-[#F0F2F5] text-[#344054] px-2 py-1 rounded-full">
+              {etsOptions.find((o) => o.value === selectedPassageEtsId)
+                ?.label ?? "Scope"}
+              <button
+                onClick={() => {
+                  setPendingEts("");
+                  setPassageEtsFilter("");
+                  fetchPassages(1);
+                }}
+                className="hover:text-[#D42620]"
+              >
+                <Icon icon="hugeicons:cancel-01" width={10} />
+              </button>
+            </span>
           )}
         </div>
+
+        {filterOpen && (
+          <div className="px-6 py-4 border-b border-[#F0F2F5] bg-[#F9FAFB] grid grid-cols-1 md:grid-cols-3 gap-3">
+            <InputField
+              type="select"
+              label="Exam Type / Subject"
+              placeholder="Any..."
+              value={pendingEts || null}
+              selectOptions={etsOptions}
+              onChange={(e) => setPendingEts(e.target.value as string)}
+            />
+            <div className="md:col-span-2 flex gap-2 items-end justify-end">
+              <Button
+                onClick={() => {
+                  setPendingEts("");
+                  setPassageEtsFilter("");
+                  fetchPassages(1);
+                  setFilterOpen(false);
+                }}
+                className="bg-white! text-[#344054]! border border-[#D0D5DD]"
+              >
+                Reset
+              </Button>
+              <Button
+                onClick={() => {
+                  setPassageEtsFilter(pendingEts);
+                  fetchPassages(1);
+                  setFilterOpen(false);
+                }}
+              >
+                Apply Filters
+              </Button>
+            </div>
+          </div>
+        )}
         <DataTable
           columns={columns}
           data={passages}
@@ -1199,7 +1962,10 @@ function PassagesTab() {
           pagination
           metaData={{
             currentPage: (passagesPage - 1) * 50 + 1,
-            endPage: passagesTotal > passagesPage * 50 ? passagesPage * 50 + 1 : (passagesPage - 1) * 50 + 1,
+            endPage:
+              passagesTotal > passagesPage * 50
+                ? passagesPage * 50 + 1
+                : (passagesPage - 1) * 50 + 1,
             totalRecords: passagesTotal,
             onPageChange: (skip) => fetchPassages(Math.floor(skip / 50) + 1),
           }}
@@ -1238,6 +2004,125 @@ function PassagesTab() {
           </Button>
         </div>
       </Modal>
+
+      {/* Passage Drawer */}
+      {passageDrawer.open && (
+        <div className="fixed inset-0 z-40">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setPassageDrawer({ open: false, passage: null })}
+          />
+          <div className="absolute right-0 top-0 h-full w-[720px] bg-white flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#EAECF0]">
+              <div>
+                <p className="font-semibold text-[#101828]">
+                  {passageDrawer.passage ? "Edit Passage" : "New Passage"}
+                </p>
+                {passageDrawer.passage?.examTypeSubject && (
+                  <p className="text-sm text-[#667085]">
+                    {passageDrawer.passage.examTypeSubject.examType?.name} /{" "}
+                    {passageDrawer.passage.examTypeSubject.subject?.name}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setPassageDrawer({ open: false, passage: null })}
+                className="text-[#667085]"
+              >
+                <Icon icon="hugeicons:cancel-01" width={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              <form
+                id="passage-drawer-form"
+                onSubmit={handlePassageSubmit(async (data) => {
+                  if (passageDrawer.passage) {
+                    await updatePassage(
+                      passageDrawer.passage.id,
+                      { title: data.title, content: data.content },
+                      () => setPassageDrawer({ open: false, passage: null }),
+                    );
+                  } else {
+                    await createPassage(
+                      {
+                        examTypeSubjectId: data.examTypeSubjectId,
+                        title: data.title,
+                        content: data.content,
+                      },
+                      () => setPassageDrawer({ open: false, passage: null }),
+                    );
+                  }
+                })}
+                className="flex flex-col gap-5"
+              >
+                {!passageDrawer.passage && (
+                  <Controller
+                    name="examTypeSubjectId"
+                    control={passageControl}
+                    render={({ field }) => (
+                      <InputField
+                        {...field}
+                        type="select"
+                        label="Exam Type / Subject"
+                        placeholder="Select..."
+                        value={field.value || null}
+                        selectOptions={etsOptions}
+                        error={passageErrors.examTypeSubjectId?.message}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    )}
+                  />
+                )}
+                <Controller
+                  name="title"
+                  control={passageControl}
+                  render={({ field }) => (
+                    <InputField
+                      {...field}
+                      label="Title"
+                      placeholder="e.g. Read the following passage carefully"
+                      error={passageErrors.title?.message}
+                      onChange={(e) => field.onChange(e.target.value)}
+                    />
+                  )}
+                />
+                <Controller
+                  name="content"
+                  control={passageControl}
+                  render={({ field }) => (
+                    <InputField
+                      {...field}
+                      type="rich-text"
+                      label="Content"
+                      value={field.value ?? ""}
+                      richTextProps={{ minHeight: "400px" }}
+                      error={passageErrors.content?.message}
+                      onChange={(e) => field.onChange(e.target.value)}
+                    />
+                  )}
+                />
+              </form>
+            </div>
+            <div className="px-6 py-4 border-t border-[#EAECF0] flex gap-3">
+              <Button
+                type="button"
+                onClick={() => setPassageDrawer({ open: false, passage: null })}
+                className="flex-1 !bg-white !text-[#344054] border border-[#D0D5DD]"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="passage-drawer-form"
+                loading={passageSubmitting}
+                className="flex-1"
+              >
+                {passageDrawer.passage ? "Save Changes" : "Create Passage"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -1253,10 +2138,14 @@ function QuestionsTab() {
     questionFilters,
     setQuestionFilters,
     fetchQuestions,
+    updateQuestion,
     deleteQuestion,
     examTypeSubjects,
     fetchExamTypeSubjects,
   } = useExamRevisionStore();
+  const [togglingQuestionId, setTogglingQuestionId] = useState<string | null>(
+    null,
+  );
   const { canWrite } = useAdminAuthStore();
   const canEdit = canWrite(AdminModule.EXAM_REVISION);
 
@@ -1286,13 +2175,22 @@ function QuestionsTab() {
   }));
 
   const applyFilters = () => {
-    setQuestionFilters({ examTypeSubjectId: pendingEts, type: pendingType, difficulty: pendingDifficulty });
+    setQuestionFilters({
+      examTypeSubjectId: pendingEts,
+      type: pendingType,
+      difficulty: pendingDifficulty,
+    });
     fetchQuestions(1);
     setFilterOpen(false);
   };
 
   const clearFilter = (key: "examTypeSubjectId" | "type" | "difficulty") => {
-    const next = { examTypeSubjectId: pendingEts, type: pendingType, difficulty: pendingDifficulty, [key]: "" };
+    const next = {
+      examTypeSubjectId: pendingEts,
+      type: pendingType,
+      difficulty: pendingDifficulty,
+      [key]: "",
+    };
     if (key === "examTypeSubjectId") setPendingEts("");
     if (key === "type") setPendingType("");
     if (key === "difficulty") setPendingDifficulty("");
@@ -1300,22 +2198,11 @@ function QuestionsTab() {
     fetchQuestions(1);
   };
 
-  const activeFilterCount = [questionFilters.examTypeSubjectId, questionFilters.type, questionFilters.difficulty].filter(Boolean).length;
-
-  const downloadCsvTemplate = async () => {
-    try {
-      const { api } = await import("@/src/lib/api");
-      const res = await api.get("/admin/exam-revision/questions/csv-template", { responseType: "blob" });
-      const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: "text/csv" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "questions-template.csv";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      // silently fail — user will notice no download
-    }
-  };
+  const activeFilterCount = [
+    questionFilters.examTypeSubjectId,
+    questionFilters.type,
+    questionFilters.difficulty,
+  ].filter(Boolean).length;
 
   const doBulkImport = async () => {
     setBulkLoading(true);
@@ -1339,8 +2226,8 @@ function QuestionsTab() {
       key: "text",
       header: "Question",
       render: (r) => (
-        <p className="max-w-xs text-sm text-[#344054]">
-          {stripMarkdownPreview(r.questionText, 120, true)}
+        <p className="max-w-xs text-sm text-[#344054] line-clamp-2">
+          {stripMarkdownPreview(r.questionText, 300, true)}
         </p>
       ),
     },
@@ -1397,29 +2284,59 @@ function QuestionsTab() {
     {
       key: "actions",
       header: "",
-      render: (r) => (
-        <div className="flex gap-2">
-          {canEdit && (
+      render: (r) =>
+        canEdit ? (
+          <div className="flex items-center gap-2">
             <Link
               href={`/exam-revision/questions/${r.id}/edit`}
-              className="text-xs text-[#007FFF] hover:underline"
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors"
             >
               Edit
             </Link>
-          )}
-          {canEdit && (
-            <>
-              <span className="text-[#D0D5DD]">|</span>
-              <button
-                onClick={() => setDeleteTarget(r)}
-                className="text-xs text-[#D42620] hover:underline"
-              >
-                Delete
-              </button>
-            </>
-          )}
-        </div>
-      ),
+            <button
+              onClick={async () => {
+                setTogglingQuestionId(r.id);
+                await updateQuestion(r.id, { isActive: !r.isActive });
+                setTogglingQuestionId(null);
+              }}
+              disabled={togglingQuestionId === r.id}
+              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 ${
+                r.isActive
+                  ? "border-[#F3A218] text-[#F3A218] hover:bg-[#FFFBEB]"
+                  : "border-[#099137] text-[#099137] hover:bg-[#F0FBF3]"
+              }`}
+            >
+              {r.isActive ? "Deactivate" : "Activate"}
+              {togglingQuestionId === r.id && (
+                <svg
+                  className="animate-spin w-3 h-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
+                  />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={() => setDeleteTarget(r)}
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        ) : null,
     },
   ];
 
@@ -1432,13 +2349,13 @@ function QuestionsTab() {
           canEdit ? (
             <div className="flex gap-2">
               <Button
-                onClick={() => void downloadCsvTemplate()}
+                onClick={() => toast.info("Feature coming soon")}
                 className="!bg-white !text-[#344054] border border-[#D0D5DD] flex items-center gap-2"
               >
                 <Icon icon="hugeicons:download-04" width={16} /> CSV Template
               </Button>
               <Button
-                onClick={() => setBulkModal(true)}
+                onClick={() => toast.info("Feature coming soon")}
                 className="!bg-white !text-[#344054] border border-[#D0D5DD] flex items-center gap-2"
               >
                 <Icon icon="hugeicons:file-import" width={16} /> Import JSON
@@ -1472,8 +2389,13 @@ function QuestionsTab() {
           </button>
           {questionFilters.examTypeSubjectId && (
             <span className="flex items-center gap-1 text-xs bg-[#F0F2F5] text-[#344054] px-2 py-1 rounded-full">
-              {etsOptions.find((o) => o.value === questionFilters.examTypeSubjectId)?.label ?? "Scope"}
-              <button onClick={() => clearFilter("examTypeSubjectId")} className="hover:text-[#D42620]">
+              {etsOptions.find(
+                (o) => o.value === questionFilters.examTypeSubjectId,
+              )?.label ?? "Scope"}
+              <button
+                onClick={() => clearFilter("examTypeSubjectId")}
+                className="hover:text-[#D42620]"
+              >
                 <Icon icon="hugeicons:cancel-01" width={10} />
               </button>
             </span>
@@ -1481,7 +2403,10 @@ function QuestionsTab() {
           {questionFilters.type && (
             <span className="flex items-center gap-1 text-xs bg-[#F0F2F5] text-[#344054] px-2 py-1 rounded-full capitalize">
               {questionFilters.type.replace(/_/g, " ")}
-              <button onClick={() => clearFilter("type")} className="hover:text-[#D42620]">
+              <button
+                onClick={() => clearFilter("type")}
+                className="hover:text-[#D42620]"
+              >
                 <Icon icon="hugeicons:cancel-01" width={10} />
               </button>
             </span>
@@ -1489,7 +2414,10 @@ function QuestionsTab() {
           {questionFilters.difficulty && (
             <span className="flex items-center gap-1 text-xs bg-[#F0F2F5] text-[#344054] px-2 py-1 rounded-full capitalize">
               {questionFilters.difficulty}
-              <button onClick={() => clearFilter("difficulty")} className="hover:text-[#D42620]">
+              <button
+                onClick={() => clearFilter("difficulty")}
+                className="hover:text-[#D42620]"
+              >
                 <Icon icon="hugeicons:cancel-01" width={10} />
               </button>
             </span>
@@ -1529,7 +2457,11 @@ function QuestionsTab() {
                   setPendingEts("");
                   setPendingType("");
                   setPendingDifficulty("");
-                  setQuestionFilters({ examTypeSubjectId: "", type: "", difficulty: "" });
+                  setQuestionFilters({
+                    examTypeSubjectId: "",
+                    type: "",
+                    difficulty: "",
+                  });
                   fetchQuestions(1);
                   setFilterOpen(false);
                 }}
@@ -1558,7 +2490,10 @@ function QuestionsTab() {
           pagination
           metaData={{
             currentPage: (questionsPage - 1) * 50 + 1,
-            endPage: questionsTotal > questionsPage * 50 ? questionsPage * 50 + 1 : (questionsPage - 1) * 50 + 1,
+            endPage:
+              questionsTotal > questionsPage * 50
+                ? questionsPage * 50 + 1
+                : (questionsPage - 1) * 50 + 1,
             totalRecords: questionsTotal,
             onPageChange: (skip) => fetchQuestions(Math.floor(skip / 50) + 1),
           }}

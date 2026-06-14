@@ -55,6 +55,9 @@ export interface IAdminRole {
 export interface IPlatformStats {
   totalUsers: number;
   userBreakdown: Array<{ name: string; value: number; fill: string }>;
+  totalExamsDelta?: number | null;
+  totalUsersDelta?: number | null;
+  examsDelta?: number | null;
 }
 
 export interface IRegistrationPoint {
@@ -75,6 +78,7 @@ export interface IExamType {
   freeTierQuestionLimit: number;
   supportedCategories: string[];
   isActive: boolean;
+  etsCount?: number;
   createdAt: string;
 }
 
@@ -84,6 +88,7 @@ export interface ISubject {
   description: string | null;
   totalQuestions: number;
   isActive: boolean;
+  etsCount?: number;
   createdAt: string;
 }
 
@@ -95,6 +100,11 @@ export interface IExamTypeSubject {
   examType?: { id: string; name: string };
   subject?: { id: string; name: string };
   createdAt: string;
+}
+
+export interface IExamTypeSubjectWithStats extends IExamTypeSubject {
+  questionCount: number;
+  passageCount: number;
 }
 
 export interface ITopic {
@@ -194,7 +204,7 @@ export interface IAffiliatePayout {
   id: string;
   affiliateId: string;
   amount: number;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: "pending" | "processing" | "completed" | "failed";
   paymentMethod: string | null;
   paymentDetails: Record<string, string> | null;
   processedAt: string | null;
@@ -203,6 +213,17 @@ export interface IAffiliatePayout {
 }
 
 // ─── Subscriptions ────────────────────────────────────────────────────────────
+
+export interface IRegionCurrency {
+  id: string;
+  regionCode: string;
+  regionName: string;
+  currency: string;
+  paymentProvider: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface IAdminSubscription {
   id: string;
@@ -230,6 +251,16 @@ export interface IAdminSubscription {
   plan?: { id: string; name: string; durationDays: number };
 }
 
+export interface IPlanPrice {
+  id: string;
+  planId: string;
+  currency: string;
+  amount: number;
+  isActive: boolean;
+  stripePriceId: string | null;
+  paystackPlanCode: string | null;
+}
+
 export interface IAdminSubscriptionPlan {
   id: string;
   examTypeId: string;
@@ -240,6 +271,7 @@ export interface IAdminSubscriptionPlan {
   sortOrder: number;
   stripeProductId: string | null;
   examType?: { id: string; name: string };
+  prices?: IPlanPrice[];
   createdAt: string;
 }
 
@@ -259,8 +291,12 @@ export interface IAdminTestimonial {
 
 // ─── Bulk Emails ──────────────────────────────────────────────────────────────
 
-export type CampaignTargetAudience = 'all' | 'students' | 'sponsors' | 'affiliates';
-export type CampaignStatus = 'draft' | 'queued' | 'sent' | 'failed';
+export type CampaignTargetAudience =
+  | "all"
+  | "students"
+  | "sponsors"
+  | "affiliates";
+export type CampaignStatus = "draft" | "queued" | "sent" | "failed";
 
 export interface IAdminCampaign {
   id: string;
@@ -277,7 +313,7 @@ export interface IAdminCampaign {
 
 // ─── Messages ─────────────────────────────────────────────────────────────────
 
-export type FlagStatus = 'pending' | 'reviewed' | 'dismissed';
+export type FlagStatus = "pending" | "reviewed" | "dismissed";
 
 export interface IAdminMessageFlag {
   id: string;
@@ -296,10 +332,19 @@ export interface IAdminMessageFlag {
     sender?: { id: string; firstName: string; lastName: string; email: string };
   };
   chatroom?: { id: string; type: string };
-  reportedBy?: { id: string; firstName: string; lastName: string; email: string };
+  reportedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
 }
 
-export type QuestionOptionType = { id: string; text: string; isCorrect: boolean };
+export type QuestionOptionType = {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+};
 
 export interface IQuestion {
   id: string;

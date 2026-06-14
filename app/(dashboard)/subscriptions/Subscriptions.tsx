@@ -1,23 +1,41 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
 import { useAdminSubscriptionsStore } from "@/src/store/subscriptions.store";
+import { useExamRevisionStore } from "@/src/store/exam-revision.store";
 import { useAdminAuthStore } from "@/src/store/auth.store";
+import { Icon } from "@iconify/react";
 import {
   AdminModule,
   IAdminSubscription,
   IAdminSubscriptionPlan,
+  IRegionCurrency,
 } from "@/src/types";
 import { DataTable, Column } from "@/src/components/molecules/DataTable";
 import { Modal } from "@/src/components/molecules/Modal";
+import { InputField } from "@/src/components/molecules/InputField";
 import { Button } from "@/src/components/atoms/Button";
 import { StatusChip } from "@/src/components/atoms/StatusChip";
+import {
+  planDrawerSchema,
+  PlanDrawerValues,
+} from "@/src/schemas/subscriptions.schema";
 import { CARD_SHADOW } from "@/src/utils";
 
-const TABS = ["Student Subs", "Sponsor Subs", "Plans"] as const;
+const TABS = [
+  "Student Subs",
+  "Sponsor Subs",
+  "Plans",
+  "Region Config",
+] as const;
 type Tab = (typeof TABS)[number];
 
-const STATUS_VARIANT: Record<string, "success" | "warning" | "error" | "neutral"> = {
+const STATUS_VARIANT: Record<
+  string,
+  "success" | "warning" | "error" | "neutral"
+> = {
   active: "success",
   pending: "neutral",
   scheduled: "neutral",
@@ -27,8 +45,81 @@ const STATUS_VARIANT: Record<string, "success" | "warning" | "error" | "neutral"
   suspended: "warning",
 };
 
+const ALL_CURRENCIES = [
+  { value: "NGN", label: "₦ NGN — Nigerian Naira" },
+  { value: "USD", label: "$ USD — US Dollar" },
+  { value: "GBP", label: "£ GBP — British Pound" },
+  { value: "EUR", label: "€ EUR — Euro" },
+  { value: "CAD", label: "CA$ CAD — Canadian Dollar" },
+  { value: "AUD", label: "A$ AUD — Australian Dollar" },
+];
+
+const CURRENCY_OPTIONS = [
+  { value: "NGN", label: "NGN — Nigerian Naira" },
+  { value: "USD", label: "USD — US Dollar" },
+  { value: "GBP", label: "GBP — British Pound" },
+  { value: "EUR", label: "EUR — Euro" },
+  { value: "CAD", label: "CAD — Canadian Dollar" },
+  { value: "AUD", label: "AUD — Australian Dollar" },
+];
+
+const PROVIDER_OPTIONS = [
+  { value: "stripe", label: "Stripe" },
+  { value: "paystack", label: "Paystack" },
+];
+
 function fmtStatus(s: string) {
   return s.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function TabCard({
+  title,
+  subtitle,
+  action,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="bg-white overflow-hidden rounded-2xl flex flex-col"
+      style={{ boxShadow: CARD_SHADOW }}
+    >
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F2F5]">
+        <div>
+          <p className="font-semibold text-[#101828]">{title}</p>
+          {subtitle && <p className="text-sm text-[#667085]">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ─── Spinner helper ────────────────────────────────────────────────────────────
+
+function Spinner() {
+  return (
+    <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
+      />
+    </svg>
+  );
 }
 
 // ─── Cancel Modal ──────────────────────────────────────────────────────────────
@@ -86,182 +177,473 @@ function CancelModal({
   );
 }
 
-// ─── Plan Form Modal ───────────────────────────────────────────────────────────
+// ─── Plan Drawer ───────────────────────────────────────────────────────────────
 
-function PlanFormModal({
+function PlanDrawer({
   plan,
-  examTypes,
   onClose,
 }: {
   plan: IAdminSubscriptionPlan | null;
-  examTypes: { id: string; name: string }[];
   onClose: () => void;
 }) {
   const { createPlan, updatePlan } = useAdminSubscriptionsStore();
+  const { examTypes, fetchExamTypes } = useExamRevisionStore();
   const isEdit = plan !== null;
 
-  const [form, setForm] = useState({
-    examTypeId: plan?.examTypeId ?? "",
-    name: plan?.name ?? "",
-    description: plan?.description ?? "",
-    durationDays: plan?.durationDays ?? 30,
-    sortOrder: plan?.sortOrder ?? 0,
-    stripeProductId: plan?.stripeProductId ?? "",
-    isActive: plan?.isActive ?? true,
+  useEffect(() => {
+    if (examTypes.length === 0) fetchExamTypes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const initialPrices =
+    plan?.prices?.map((p) => ({
+      currency: p.currency,
+      amount: p.amount,
+      stripePriceId: p.stripePriceId ?? "",
+      paystackPlanCode: p.paystackPlanCode ?? "",
+    })) ?? [];
+
+  const {
+    control,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<PlanDrawerValues>({
+    resolver: yupResolver(planDrawerSchema),
+    defaultValues: {
+      examTypeId: plan?.examTypeId ?? "",
+      name: plan?.name ?? "",
+      description: plan?.description ?? "",
+      durationDays: plan?.durationDays ?? 30,
+      sortOrder: plan?.sortOrder ?? 0,
+      stripeProductId: plan?.stripeProductId ?? "",
+      prices: initialPrices,
+    },
   });
-  const [saving, setSaving] = useState(false);
 
-  const setField = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
-    setForm((f) => ({ ...f, [k]: v }));
+  const { fields, append, remove } = useFieldArray({ control, name: "prices" });
+  const watchedPrices = watch("prices");
+  const usedCurrencies = (watchedPrices ?? []).map((p) => p.currency);
+  const availableCurrencies = ALL_CURRENCIES.filter(
+    (c) => !usedCurrencies.includes(c.value),
+  );
 
-  const handle = async () => {
-    if (!form.examTypeId || !form.name || !form.durationDays) return;
-    setSaving(true);
+  const examTypeOptions = examTypes.map((e) => ({
+    value: e.id,
+    label: e.name,
+  }));
+
+  const onSubmit = async (data: PlanDrawerValues) => {
     try {
+      const prices = (data.prices ?? []).map((p) => ({
+        currency: p.currency,
+        amount: Number(p.amount),
+        stripePriceId: p.stripePriceId || undefined,
+        paystackPlanCode: p.paystackPlanCode || undefined,
+      }));
+
       if (isEdit) {
         await updatePlan(plan.id, {
-          name: form.name,
-          description: form.description || undefined,
-          durationDays: Number(form.durationDays),
-          sortOrder: Number(form.sortOrder),
-          stripeProductId: form.stripeProductId || undefined,
-          isActive: form.isActive,
+          name: data.name,
+          description: data.description || undefined,
+          durationDays: Number(data.durationDays),
+          sortOrder: Number(data.sortOrder),
+          stripeProductId: data.stripeProductId || undefined,
+          prices: prices.length ? prices : undefined,
         });
       } else {
         await createPlan({
-          examTypeId: form.examTypeId,
-          name: form.name,
-          description: form.description || undefined,
-          durationDays: Number(form.durationDays),
-          sortOrder: Number(form.sortOrder),
-          stripeProductId: form.stripeProductId || undefined,
+          examTypeId: data.examTypeId,
+          name: data.name,
+          description: data.description || undefined,
+          durationDays: Number(data.durationDays),
+          sortOrder: Number(data.sortOrder),
+          stripeProductId: data.stripeProductId || undefined,
+          prices: prices.length ? prices : undefined,
         });
       }
       onClose();
     } catch {
       // error toasted in store
-    } finally {
-      setSaving(false);
     }
   };
 
   return (
-    <Modal isOpen onClose={onClose} className="rounded-2xl w-full max-w-md">
-      <div className="p-6">
-        <p className="font-semibold text-[#101828] mb-1">
-          {isEdit ? "Edit Plan" : "New Plan"}
-        </p>
-        <p className="text-sm text-[#667085] mb-5">
-          {isEdit ? "Update subscription plan details." : "Create a new subscription plan."}
-        </p>
-
-        <div className="flex flex-col gap-4">
-          {/* Exam Type — only on create */}
-          {!isEdit && (
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-[#344054]">Exam Type</label>
-              <select
-                value={form.examTypeId}
-                onChange={(e) => setField("examTypeId", e.target.value)}
-                className="px-3 py-2 border border-[#D0D5DD] rounded-lg text-sm outline-none focus:border-[#007FFF]"
-              >
-                <option value="">Select exam type…</option>
-                {examTypes.map((et) => (
-                  <option key={et.id} value={et.id}>{et.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-[#344054]">Name</label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={(e) => setField("name", e.target.value)}
-              placeholder="e.g. Monthly Plan"
-              className="px-3 py-2 border border-[#D0D5DD] rounded-lg text-sm outline-none focus:border-[#007FFF]"
-            />
+    <div className="fixed inset-0 z-40">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute right-0 top-0 h-full w-[720px] bg-white flex flex-col shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#EAECF0]">
+          <div>
+            <p className="font-semibold text-[#101828]">
+              {isEdit ? "Edit Plan" : "New Plan"}
+            </p>
+            {isEdit && <p className="text-sm text-[#667085]">{plan.name}</p>}
           </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-[#344054]">
-              Description <span className="text-[#667085] font-normal">(optional)</span>
-            </label>
-            <textarea
-              value={form.description}
-              onChange={(e) => setField("description", e.target.value)}
-              rows={2}
-              className="px-3 py-2 border border-[#D0D5DD] rounded-lg text-sm outline-none focus:border-[#007FFF] resize-none"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-[#344054]">Duration (days)</label>
-              <input
-                type="number"
-                min={1}
-                value={form.durationDays}
-                onChange={(e) => setField("durationDays", Number(e.target.value))}
-                className="px-3 py-2 border border-[#D0D5DD] rounded-lg text-sm outline-none focus:border-[#007FFF]"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-[#344054]">Sort Order</label>
-              <input
-                type="number"
-                min={0}
-                value={form.sortOrder}
-                onChange={(e) => setField("sortOrder", Number(e.target.value))}
-                className="px-3 py-2 border border-[#D0D5DD] rounded-lg text-sm outline-none focus:border-[#007FFF]"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-[#344054]">
-              Stripe Product ID <span className="text-[#667085] font-normal">(optional)</span>
-            </label>
-            <input
-              type="text"
-              value={form.stripeProductId}
-              onChange={(e) => setField("stripeProductId", e.target.value)}
-              placeholder="prod_…"
-              className="px-3 py-2 border border-[#D0D5DD] rounded-lg text-sm outline-none focus:border-[#007FFF]"
-            />
-          </div>
-
-          {isEdit && (
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={(e) => setField("isActive", e.target.checked)}
-                className="w-4 h-4 accent-[#007FFF]"
-              />
-              <span className="text-sm text-[#344054]">Active</span>
-            </label>
-          )}
+          <button
+            onClick={onClose}
+            className="text-[#667085] hover:text-[#344054]"
+          >
+            <Icon icon="hugeicons:cancel-01" width={20} />
+          </button>
         </div>
 
-        <div className="flex gap-3 mt-5">
-          <Button
-            onClick={handle}
-            loading={saving}
-            className="flex-1 bg-[#007FFF]! hover:bg-[#0066CC]! text-white!"
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          <form
+            id="plan-drawer-form"
+            onSubmit={handleSubmit(onSubmit)}
+            className="flex flex-col gap-5"
           >
-            {isEdit ? "Save Changes" : "Create Plan"}
-          </Button>
+            {/* ── Plan Details ─────────────────────────────────────── */}
+            <div className="flex flex-col gap-4">
+              {/* Exam Type */}
+              {isEdit ? (
+                <div>
+                  <p className="text-xs font-medium text-[#667085] mb-1">
+                    Exam Type
+                  </p>
+                  <p className="text-sm font-medium text-[#344054]">
+                    {plan.examType?.name ?? "—"}
+                  </p>
+                </div>
+              ) : (
+                <Controller
+                  name="examTypeId"
+                  control={control}
+                  render={({ field }) => (
+                    <InputField
+                      {...field}
+                      type="select"
+                      label="Exam Type"
+                      placeholder="Select exam type…"
+                      value={field.value || null}
+                      selectOptions={examTypeOptions}
+                      error={errors.examTypeId?.message}
+                      onChange={(e) => field.onChange(e.target.value)}
+                    />
+                  )}
+                />
+              )}
+
+              <Controller
+                name="name"
+                control={control}
+                render={({ field }) => (
+                  <InputField
+                    {...field}
+                    label="Name"
+                    placeholder="e.g. 2-Month Plan"
+                    error={errors.name?.message}
+                    onChange={(e) => field.onChange(e.target.value)}
+                  />
+                )}
+              />
+
+              <Controller
+                name="description"
+                control={control}
+                render={({ field }) => (
+                  <InputField
+                    {...field}
+                    type="textarea"
+                    label="Description"
+                    placeholder="Optional description…"
+                    value={field.value ?? ""}
+                    onChange={(e) => field.onChange(e.target.value)}
+                  />
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <Controller
+                  name="durationDays"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium text-[#344054]">
+                          Duration (days)
+                        </span>
+                        <span
+                          title="Number of days the subscription remains active after purchase"
+                          className="cursor-help text-[#98A2B3]"
+                        >
+                          <Icon
+                            icon="hugeicons:information-circle"
+                            width={13}
+                          />
+                        </span>
+                      </div>
+                      <InputField
+                        {...field}
+                        type="number"
+                        label={null}
+                        value={String(field.value)}
+                        error={errors.durationDays?.message}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
+                    </div>
+                  )}
+                />
+                <Controller
+                  name="sortOrder"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium text-[#344054]">
+                          Sort Order
+                        </span>
+                        <span
+                          title="Plans with lower sort order numbers appear first in the list"
+                          className="cursor-help text-[#98A2B3]"
+                        >
+                          <Icon
+                            icon="hugeicons:information-circle"
+                            width={13}
+                          />
+                        </span>
+                      </div>
+                      <InputField
+                        {...field}
+                        type="number"
+                        label={null}
+                        value={String(field.value)}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
+                    </div>
+                  )}
+                />
+              </div>
+
+              <Controller
+                name="stripeProductId"
+                control={control}
+                render={({ field }) => (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-medium text-[#344054]">
+                        Stripe Product ID
+                      </span>
+                      <span
+                        title="The product ID from your Stripe dashboard (e.g. prod_…). All Stripe price IDs for this plan should belong to this product."
+                        className="cursor-help text-[#98A2B3]"
+                      >
+                        <Icon icon="hugeicons:information-circle" width={13} />
+                      </span>
+                    </div>
+                    <InputField
+                      {...field}
+                      label={null}
+                      placeholder="prod_…"
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(e.target.value)}
+                    />
+                  </div>
+                )}
+              />
+            </div>
+
+            <hr className="border-[#F0F2F5]" />
+
+            {/* ── Currency Pricing ─────────────────────────────────── */}
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-[#98A2B3] uppercase tracking-widest">
+                    Currency Pricing
+                  </p>
+                  <p className="text-[11px] text-[#B0B8C4] mt-0.5">
+                    USD needs Stripe (US/AU); Paystack code (GH/KE/ZA) is
+                    optional.
+                  </p>
+                </div>
+                {availableCurrencies.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      append({
+                        currency: availableCurrencies[0].value,
+                        amount: 0,
+                        stripePriceId: "",
+                        paystackPlanCode: "",
+                      })
+                    }
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors"
+                  >
+                    <Icon icon="hugeicons:add-01" width={12} />
+                    Add Currency
+                  </button>
+                )}
+              </div>
+
+              {typeof errors.prices?.message === "string" && (
+                <p className="text-xs text-[#D42620]">
+                  {errors.prices.message}
+                </p>
+              )}
+
+              {fields.length === 0 && (
+                <div className="border border-dashed border-[#D0D5DD] rounded-xl p-8 text-center">
+                  <Icon
+                    icon="hugeicons:money-exchange-02"
+                    width={32}
+                    className="text-[#D0D5DD] mx-auto mb-2"
+                  />
+                  <p className="text-sm text-[#98A2B3]">
+                    No currency pricing yet.
+                  </p>
+                  <p className="text-xs text-[#B0B8C4] mt-0.5">
+                    Click &ldquo;Add Currency&rdquo; to configure pricing.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3">
+                {fields.map((field, index) => {
+                  const currency = watchedPrices?.[index]?.currency ?? "";
+                  const needsStripe = [
+                    "USD",
+                    "GBP",
+                    "EUR",
+                    "CAD",
+                    "AUD",
+                  ].includes(currency);
+                  const needsPaystack = ["NGN", "USD"].includes(currency);
+                  const isUSD = currency === "USD";
+                  const priceErrors = errors.prices?.[index] as
+                    | Record<string, { message?: string }>
+                    | undefined;
+
+                  // Options: current currency + any not yet used
+                  const currencySelectOptions = ALL_CURRENCIES.filter(
+                    (c) =>
+                      c.value === currency || !usedCurrencies.includes(c.value),
+                  );
+
+                  return (
+                    <div
+                      key={field.id}
+                      className="border border-[#E4E7EC] rounded-xl p-4 flex flex-col gap-3"
+                    >
+                      <div className="flex items-end justify-between gap-3">
+                        <div className="flex-1">
+                          <Controller
+                            name={`prices.${index}.currency`}
+                            control={control}
+                            render={({ field: cf }) => (
+                              <InputField
+                                {...cf}
+                                type="select"
+                                label="Currency"
+                                value={cf.value || null}
+                                selectOptions={currencySelectOptions}
+                                onChange={(e) => cf.onChange(e.target.value)}
+                              />
+                            )}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => remove(index)}
+                          title="Remove this currency"
+                          className="mb-0.5 p-1.5 rounded-lg text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
+                        >
+                          <Icon icon="hugeicons:delete-02" width={16} />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <Controller
+                          name={`prices.${index}.amount`}
+                          control={control}
+                          render={({ field: af }) => (
+                            <InputField
+                              {...af}
+                              type="number"
+                              label={`Amount (${currency || "—"})`}
+                              value={String(af.value ?? 0)}
+                              error={priceErrors?.amount?.message}
+                              onChange={(e) =>
+                                af.onChange(Number(e.target.value))
+                              }
+                            />
+                          )}
+                        />
+
+                        {needsStripe && (
+                          <Controller
+                            name={`prices.${index}.stripePriceId`}
+                            control={control}
+                            render={({ field: sf }) => (
+                              <InputField
+                                {...sf}
+                                label={
+                                  isUSD
+                                    ? "Stripe Price ID (US/AU)"
+                                    : "Stripe Price ID"
+                                }
+                                placeholder="price_…"
+                                value={sf.value ?? ""}
+                                error={priceErrors?.stripePriceId?.message}
+                                onChange={(e) => sf.onChange(e.target.value)}
+                              />
+                            )}
+                          />
+                        )}
+
+                        {needsPaystack && (
+                          <div className={isUSD ? "col-span-2" : ""}>
+                            <Controller
+                              name={`prices.${index}.paystackPlanCode`}
+                              control={control}
+                              render={({ field: pf }) => (
+                                <InputField
+                                  {...pf}
+                                  label={
+                                    isUSD
+                                      ? "Paystack Code (GH/KE/ZA) — Optional"
+                                      : "Paystack Plan Code"
+                                  }
+                                  placeholder="PLN_…"
+                                  value={pf.value ?? ""}
+                                  error={priceErrors?.paystackPlanCode?.message}
+                                  onChange={(e) => pf.onChange(e.target.value)}
+                                />
+                              )}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </form>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-[#EAECF0] flex gap-3">
           <Button
+            type="button"
             onClick={onClose}
-            className="flex-1 bg-[#F2F4F7]! text-[#344054]! hover:bg-[#E4E7EC]!"
+            className="flex-1 !bg-white !text-[#344054] border border-[#D0D5DD]"
           >
             Cancel
           </Button>
+          <Button
+            type="submit"
+            form="plan-drawer-form"
+            loading={isSubmitting}
+            className="flex-1"
+          >
+            {isEdit ? "Save Changes" : "Create Plan"}
+          </Button>
         </div>
       </div>
-    </Modal>
+    </div>
   );
 }
 
@@ -294,8 +676,8 @@ function DeletePlanModal({
       <div className="p-6">
         <p className="font-semibold text-[#101828] mb-1">Delete Plan</p>
         <p className="text-sm text-[#667085] mb-5">
-          Delete <span className="font-medium text-[#344054]">{plan.name}</span>? This
-          cannot be undone and may affect active subscriptions.
+          Delete <span className="font-medium text-[#344054]">{plan.name}</span>
+          ? This cannot be undone and may affect active subscriptions.
         </p>
         <div className="flex gap-3">
           <Button
@@ -375,7 +757,9 @@ function SubsTab({
                     {s.sponsor.companyName ??
                       `${s.sponsor.user.firstName} ${s.sponsor.user.lastName}`}
                   </p>
-                  <p className="text-xs text-[#667085]">{s.sponsor.user.email}</p>
+                  <p className="text-xs text-[#667085]">
+                    {s.sponsor.user.email}
+                  </p>
                 </div>
               ) : (
                 <span className="text-xs text-[#667085]">—</span>
@@ -386,7 +770,9 @@ function SubsTab({
       key: "examType",
       header: "Exam",
       render: (s) => (
-        <span className="text-sm text-[#344054]">{s.examType?.name ?? "—"}</span>
+        <span className="text-sm text-[#344054]">
+          {s.examType?.name ?? "—"}
+        </span>
       ),
     },
     {
@@ -456,7 +842,10 @@ function SubsTab({
 
   return (
     <>
-      <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: CARD_SHADOW }}>
+      <div
+        className="bg-white rounded-2xl overflow-hidden"
+        style={{ boxShadow: CARD_SHADOW }}
+      >
         <DataTable
           columns={columns}
           data={items}
@@ -476,8 +865,10 @@ function SubsTab({
             endPage,
             totalRecords: items.length,
             onPageChange: (p) => {
-              if (p < cursorPage && cursorPage > 1) void fetchSubs(cursorPage - 1);
-              else if (p > cursorPage && hasMore) void fetchSubs(cursorPage + 1);
+              if (p < cursorPage && cursorPage > 1)
+                void fetchSubs(cursorPage - 1);
+              else if (p > cursorPage && hasMore)
+                void fetchSubs(cursorPage + 1);
             },
           }}
         />
@@ -496,21 +887,22 @@ function SubsTab({
 
 // ─── Plans Tab ─────────────────────────────────────────────────────────────────
 
-const PLANS_PAGE_SIZE = 20;
+const PLANS_PAGE_SIZE = 50;
 
 function PlansTab({ canWrite }: { canWrite: boolean }) {
-  const { plans, loadingPlans, fetchPlans } = useAdminSubscriptionsStore();
+  const { plans, loadingPlans, fetchPlans, updatePlan } =
+    useAdminSubscriptionsStore();
 
-  const [modal, setModal] = useState<
-    | { type: "create" }
-    | { type: "edit"; plan: IAdminSubscriptionPlan }
-    | { type: "delete"; plan: IAdminSubscriptionPlan }
-    | null
+  const [drawer, setDrawer] = useState<
+    { type: "create" } | { type: "edit"; plan: IAdminSubscriptionPlan } | null
   >(null);
+  const [deleteTarget, setDeleteTarget] =
+    useState<IAdminSubscriptionPlan | null>(null);
 
   const [search, setSearch] = useState("");
   const [searchApplied, setSearchApplied] = useState("");
   const [page, setPage] = useState(1);
+  const [togglingPlanId, setTogglingPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     if (plans.length === 0) void fetchPlans();
@@ -520,17 +912,14 @@ function PlansTab({ canWrite }: { canWrite: boolean }) {
   const filteredPlans = plans.filter((p) => {
     if (!searchApplied) return true;
     const q = searchApplied.toLowerCase();
-    return p.name.toLowerCase().includes(q) || (p.examType?.name ?? "").toLowerCase().includes(q);
+    return (
+      p.name.toLowerCase().includes(q) ||
+      (p.examType?.name ?? "").toLowerCase().includes(q)
+    );
   });
-  const pagedPlans = filteredPlans.slice((page - 1) * PLANS_PAGE_SIZE, page * PLANS_PAGE_SIZE);
-
-  // Derive unique exam types from loaded plans for the form
-  const examTypes = Array.from(
-    new Map(
-      plans
-        .filter((p) => p.examType)
-        .map((p) => [p.examTypeId, { id: p.examTypeId, name: p.examType!.name }]),
-    ).values(),
+  const pagedPlans = filteredPlans.slice(
+    (page - 1) * PLANS_PAGE_SIZE,
+    page * PLANS_PAGE_SIZE,
   );
 
   const columns: Column<IAdminSubscriptionPlan>[] = [
@@ -541,7 +930,9 @@ function PlansTab({ canWrite }: { canWrite: boolean }) {
         <div>
           <p className="font-medium text-[#101828] text-sm">{p.name}</p>
           {p.description && (
-            <p className="text-xs text-[#667085] mt-0.5 line-clamp-1">{p.description}</p>
+            <p className="text-xs text-[#667085] mt-0.5 line-clamp-1">
+              {p.description}
+            </p>
           )}
         </div>
       ),
@@ -550,7 +941,9 @@ function PlansTab({ canWrite }: { canWrite: boolean }) {
       key: "examType",
       header: "Exam Type",
       render: (p) => (
-        <span className="text-sm text-[#344054]">{p.examType?.name ?? "—"}</span>
+        <span className="text-sm text-[#344054]">
+          {p.examType?.name ?? "—"}
+        </span>
       ),
     },
     {
@@ -563,7 +956,9 @@ function PlansTab({ canWrite }: { canWrite: boolean }) {
     {
       key: "sortOrder",
       header: "Order",
-      render: (p) => <span className="text-sm text-[#667085]">{p.sortOrder}</span>,
+      render: (p) => (
+        <span className="text-sm text-[#667085]">{p.sortOrder}</span>
+      ),
     },
     {
       key: "isActive",
@@ -576,13 +971,25 @@ function PlansTab({ canWrite }: { canWrite: boolean }) {
       ),
     },
     {
-      key: "stripeProductId",
-      header: "Stripe ID",
-      render: (p) => (
-        <span className="text-xs text-[#667085] font-mono">
-          {p.stripeProductId ?? "—"}
-        </span>
-      ),
+      key: "currencies",
+      header: "Currencies",
+      render: (p) => {
+        const codes = (p.prices ?? []).map((pr) => pr.currency);
+        if (!codes.length)
+          return <span className="text-xs text-[#667085]">—</span>;
+        return (
+          <div className="flex gap-1 flex-wrap">
+            {codes.map((c) => (
+              <span
+                key={c}
+                className="text-[0.65rem] bg-[#F0F2F5] text-[#344054] px-2 py-0.5 rounded-full font-mono"
+              >
+                {c}
+              </span>
+            ))}
+          </div>
+        );
+      },
     },
     {
       key: "actions",
@@ -592,13 +999,33 @@ function PlansTab({ canWrite }: { canWrite: boolean }) {
         return (
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setModal({ type: "edit", plan: p })}
+              onClick={() => setDrawer({ type: "edit", plan: p })}
               className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors"
             >
               Edit
             </button>
             <button
-              onClick={() => setModal({ type: "delete", plan: p })}
+              onClick={async () => {
+                setTogglingPlanId(p.id);
+                try {
+                  await updatePlan(p.id, { isActive: !p.isActive });
+                } catch {
+                  // toasted
+                }
+                setTogglingPlanId(null);
+              }}
+              disabled={togglingPlanId === p.id}
+              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 ${
+                p.isActive
+                  ? "border-[#F3A218] text-[#F3A218] hover:bg-[#FFFBEB]"
+                  : "border-[#099137] text-[#099137] hover:bg-[#F0FBF3]"
+              }`}
+            >
+              {p.isActive ? "Deactivate" : "Activate"}
+              {togglingPlanId === p.id && <Spinner />}
+            </button>
+            <button
+              onClick={() => setDeleteTarget(p)}
               className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
             >
               Delete
@@ -611,18 +1038,24 @@ function PlansTab({ canWrite }: { canWrite: boolean }) {
 
   return (
     <>
-      <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: CARD_SHADOW }}>
+      <div
+        className="bg-white rounded-2xl overflow-hidden"
+        style={{ boxShadow: CARD_SHADOW }}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F2F5]">
           <div>
             <p className="font-semibold text-[#101828]">Subscription Plans</p>
-            <p className="text-sm text-[#667085]">{filteredPlans.length} plan{filteredPlans.length !== 1 ? "s" : ""}</p>
+            <p className="text-sm text-[#667085]">
+              {filteredPlans.length} plan{filteredPlans.length !== 1 ? "s" : ""}
+            </p>
           </div>
           {canWrite && (
             <Button
-              onClick={() => setModal({ type: "create" })}
-              className="bg-[#007FFF]! hover:bg-[#0066CC]! text-white! text-sm!"
+              onClick={() => setDrawer({ type: "create" })}
+              className="flex items-center gap-2"
             >
-              + New Plan
+              <Icon icon="hugeicons:add-01" width={16} height={16} />
+              New Plan
             </Button>
           )}
         </div>
@@ -636,35 +1069,318 @@ function PlansTab({ canWrite }: { canWrite: boolean }) {
           searchProps={{
             value: search,
             onChange: setSearch,
-            onSearch: () => { setSearchApplied(search); setPage(1); },
+            onSearch: () => {
+              setSearchApplied(search);
+              setPage(1);
+            },
             placeholder: "Search plans...",
           }}
           pagination
           metaData={{
             currentPage: (page - 1) * PLANS_PAGE_SIZE + 1,
-            endPage: filteredPlans.length > page * PLANS_PAGE_SIZE ? page * PLANS_PAGE_SIZE + 1 : (page - 1) * PLANS_PAGE_SIZE + 1,
+            endPage:
+              filteredPlans.length > page * PLANS_PAGE_SIZE
+                ? page * PLANS_PAGE_SIZE + 1
+                : (page - 1) * PLANS_PAGE_SIZE + 1,
             totalRecords: filteredPlans.length,
-            onPageChange: (skip) => setPage(Math.floor(skip / PLANS_PAGE_SIZE) + 1),
+            onPageChange: (skip) =>
+              setPage(Math.floor(skip / PLANS_PAGE_SIZE) + 1),
           }}
         />
       </div>
 
-      {modal?.type === "create" && (
-        <PlanFormModal
-          plan={null}
-          examTypes={examTypes}
-          onClose={() => setModal(null)}
+      {drawer?.type === "create" && (
+        <PlanDrawer plan={null} onClose={() => setDrawer(null)} />
+      )}
+      {drawer?.type === "edit" && (
+        <PlanDrawer plan={drawer.plan} onClose={() => setDrawer(null)} />
+      )}
+      {deleteTarget && (
+        <DeletePlanModal
+          plan={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
         />
       )}
-      {modal?.type === "edit" && (
-        <PlanFormModal
-          plan={modal.plan}
-          examTypes={examTypes}
-          onClose={() => setModal(null)}
+    </>
+  );
+}
+
+// ─── Region Form Modal ─────────────────────────────────────────────────────────
+
+function RegionFormModal({
+  region,
+  onClose,
+  onSave,
+}: {
+  region: IRegionCurrency | null;
+  onClose: () => void;
+  onSave: (data: Record<string, unknown>) => Promise<void>;
+}) {
+  const isEdit = region !== null;
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    regionCode: region?.regionCode ?? "",
+    regionName: region?.regionName ?? "",
+    currency: region?.currency ?? "USD",
+    paymentProvider: region?.paymentProvider ?? "stripe",
+    isActive: region?.isActive ?? true,
+  });
+
+  const handle = async () => {
+    setLoading(true);
+    try {
+      await onSave(form);
+    } catch {
+      // toasted in store
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} className="rounded-2xl w-full max-w-sm">
+      <div className="p-6 flex flex-col gap-4">
+        <div>
+          <p className="font-semibold text-[#101828]">
+            {isEdit ? "Edit Region" : "Add Region"}
+          </p>
+          <p className="text-sm text-[#667085] mt-0.5">
+            {isEdit
+              ? `Editing ${region.regionCode}`
+              : "Map a new country to a currency and provider"}
+          </p>
+        </div>
+        <div className="flex flex-col gap-3">
+          {!isEdit && (
+            <InputField
+              label="Country Code (ISO 3166-1)"
+              placeholder="e.g. NG, US, GB"
+              value={form.regionCode}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  regionCode: e.target.value.toUpperCase(),
+                }))
+              }
+            />
+          )}
+          <InputField
+            label="Region Name"
+            placeholder="e.g. Nigeria"
+            value={form.regionName}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, regionName: e.target.value }))
+            }
+          />
+          <InputField
+            type="select"
+            label="Currency"
+            value={form.currency || null}
+            selectOptions={CURRENCY_OPTIONS}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, currency: e.target.value }))
+            }
+          />
+          <InputField
+            type="select"
+            label="Payment Provider"
+            value={form.paymentProvider || null}
+            selectOptions={PROVIDER_OPTIONS}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, paymentProvider: e.target.value }))
+            }
+          />
+        </div>
+        <div className="flex gap-3">
+          <Button
+            onClick={onClose}
+            className="flex-1 !bg-white !text-[#344054] border border-[#D0D5DD]"
+          >
+            Cancel
+          </Button>
+          <Button loading={loading} onClick={handle} className="flex-1">
+            {isEdit ? "Save Changes" : "Add Region"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Region Config Tab ─────────────────────────────────────────────────────────
+
+function RegionConfigTab({ canWrite }: { canWrite: boolean }) {
+  const {
+    regionCurrencies,
+    loadingRegions,
+    regionTotal,
+    regionPage,
+    fetchRegionCurrencies,
+    createRegionCurrency,
+    updateRegionCurrency,
+  } = useAdminSubscriptionsStore();
+
+  const [search, setSearch] = useState("");
+  const [editTarget, setEditTarget] = useState<IRegionCurrency | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [togglingRegionId, setTogglingRegionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchRegionCurrencies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const columns: Column<IRegionCurrency>[] = [
+    {
+      key: "regionCode",
+      header: "Code",
+      render: (r) => (
+        <span className="font-mono font-semibold text-[#344054] text-sm">
+          {r.regionCode}
+        </span>
+      ),
+    },
+    {
+      key: "regionName",
+      header: "Region",
+      render: (r) => (
+        <span className="text-sm text-[#101828]">{r.regionName}</span>
+      ),
+    },
+    {
+      key: "currency",
+      header: "Currency",
+      render: (r) => (
+        <span className="text-sm font-medium text-[#344054]">{r.currency}</span>
+      ),
+    },
+    {
+      key: "paymentProvider",
+      header: "Provider",
+      render: (r) => (
+        <StatusChip
+          variant={r.paymentProvider === "stripe" ? "info" : "success"}
+          label={r.paymentProvider === "stripe" ? "Stripe" : "Paystack"}
+        />
+      ),
+    },
+    {
+      key: "isActive",
+      header: "Status",
+      render: (r) => (
+        <StatusChip
+          variant={r.isActive ? "success" : "neutral"}
+          label={r.isActive ? "Active" : "Inactive"}
+        />
+      ),
+    },
+    {
+      key: "id",
+      header: "",
+      render: (r) =>
+        canWrite ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setEditTarget(r)}
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors"
+            >
+              Edit
+            </button>
+            <button
+              onClick={async () => {
+                setTogglingRegionId(r.id);
+                try {
+                  await updateRegionCurrency(r.id, { isActive: !r.isActive });
+                } catch {
+                  // toasted
+                }
+                setTogglingRegionId(null);
+              }}
+              disabled={togglingRegionId === r.id}
+              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 ${
+                r.isActive
+                  ? "border-[#F3A218] text-[#F3A218] hover:bg-[#FFFBEB]"
+                  : "border-[#099137] text-[#099137] hover:bg-[#F0FBF3]"
+              }`}
+            >
+              {r.isActive ? "Deactivate" : "Activate"}
+              {togglingRegionId === r.id && <Spinner />}
+            </button>
+          </div>
+        ) : null,
+    },
+  ];
+
+  return (
+    <>
+      <TabCard
+        title="Region Config"
+        subtitle="Map countries to currencies and payment providers"
+        action={
+          canWrite ? (
+            <Button
+              onClick={() => setAddOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Icon icon="hugeicons:add-01" width={16} /> Add Region
+            </Button>
+          ) : undefined
+        }
+      >
+        <DataTable
+          columns={columns}
+          data={regionCurrencies}
+          loading={loadingRegions}
+          keyExtractor={(r) => r.id}
+          emptyMessage="No regions configured"
+          shouldNotHaveBorder
+          searchProps={{
+            value: search,
+            onChange: setSearch,
+            onSearch: () => fetchRegionCurrencies(1, search),
+            placeholder: "Search by name or code…",
+          }}
+          pagination
+          metaData={{
+            currentPage: (regionPage - 1) * 50 + 1,
+            endPage:
+              regionTotal > regionPage * 50
+                ? regionPage * 50 + 1
+                : (regionPage - 1) * 50 + 1,
+            totalRecords: regionTotal,
+            onPageChange: (skip) =>
+              fetchRegionCurrencies(Math.floor(skip / 50) + 1, search),
+          }}
+        />
+      </TabCard>
+
+      {editTarget && (
+        <RegionFormModal
+          region={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSave={async (data) => {
+            await updateRegionCurrency(editTarget.id, data);
+            setEditTarget(null);
+          }}
         />
       )}
-      {modal?.type === "delete" && (
-        <DeletePlanModal plan={modal.plan} onClose={() => setModal(null)} />
+
+      {addOpen && (
+        <RegionFormModal
+          region={null}
+          onClose={() => setAddOpen(false)}
+          onSave={async (data) => {
+            await createRegionCurrency(
+              data as {
+                regionCode: string;
+                regionName: string;
+                currency: string;
+                paymentProvider: string;
+              },
+            );
+            setAddOpen(false);
+          }}
+        />
       )}
     </>
   );
@@ -686,9 +1402,11 @@ export default function Subscriptions() {
   }, [activeTab]);
 
   return (
-    <section className="xl:px-[2rem] px-[.875rem] py-[1.25rem] flex flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl md:text-2xl font-[600] text-[#171717]">Subscriptions</h1>
+        <h1 className="text-xl md:text-2xl font-[600] text-[#171717]">
+          Subscriptions
+        </h1>
         <p className="text-gray-500 text-sm mt-1">
           Manage student subscriptions, sponsor-funded subs, and plans
         </p>
@@ -709,7 +1427,9 @@ export default function Subscriptions() {
           {TABS.map((tab, i) => (
             <button
               key={tab}
-              ref={(el) => { tabRefs.current[i] = el; }}
+              ref={(el) => {
+                tabRefs.current[i] = el;
+              }}
               onClick={() => setActiveTab(tab)}
               className={`relative z-10 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
                 activeTab === tab
@@ -730,7 +1450,9 @@ export default function Subscriptions() {
         <SubsTab tabType="sponsor" canWrite={canWriteSubs} />
       )}
       {activeTab === "Plans" && <PlansTab canWrite={canWriteSubs} />}
-    </section>
+      {activeTab === "Region Config" && (
+        <RegionConfigTab canWrite={canWriteSubs} />
+      )}
+    </div>
   );
 }
-
