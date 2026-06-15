@@ -10,11 +10,31 @@ import { InputField } from "@/src/components/molecules/InputField";
 import { Button } from "@/src/components/atoms/Button";
 import { CARD_SHADOW } from "@/src/utils";
 
-const AUDIENCE_OPTIONS: { value: CampaignTargetAudience; label: string; description: string }[] = [
-  { value: "all", label: "All Users", description: "Students, sponsors, and affiliates" },
-  { value: "students", label: "Students only", description: "Everyone with a student account" },
-  { value: "sponsors", label: "Sponsors only", description: "Everyone with a sponsor account" },
-  { value: "affiliates", label: "Affiliates only", description: "Everyone with an affiliate account" },
+const AUDIENCE_OPTIONS: {
+  value: CampaignTargetAudience;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "all",
+    label: "All Users",
+    description: "Students, sponsors, and affiliates",
+  },
+  {
+    value: "students",
+    label: "Students only",
+    description: "Everyone with a student account",
+  },
+  {
+    value: "sponsors",
+    label: "Sponsors only",
+    description: "Everyone with a sponsor account",
+  },
+  {
+    value: "affiliates",
+    label: "Affiliates only",
+    description: "Everyone with an affiliate account",
+  },
 ];
 
 export default function NewCampaign() {
@@ -45,7 +65,12 @@ export default function NewCampaign() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    const ok = await createCampaign({ name, subject, targetAudience: audience, content });
+    const ok = await createCampaign({
+      name,
+      subject,
+      targetAudience: audience,
+      content,
+    });
     if (ok) router.push("/bulk-emails");
   };
 
@@ -70,14 +95,20 @@ export default function NewCampaign() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* Campaign details card */}
-        <div className="bg-white rounded-2xl p-6 flex flex-col gap-5" style={{ boxShadow: CARD_SHADOW }}>
+        <div
+          className="bg-white rounded-2xl p-6 flex flex-col gap-5"
+          style={{ boxShadow: CARD_SHADOW }}
+        >
           <p className="font-semibold text-[#101828]">Campaign Details</p>
 
           <InputField
             label="Campaign Name"
             placeholder="e.g. January 2026 Newsletter"
             value={name}
-            onChange={(e) => { setName(e.target.value); setErrors((v) => ({ ...v, name: "" })); }}
+            onChange={(e) => {
+              setName(e.target.value);
+              setErrors((v) => ({ ...v, name: "" }));
+            }}
             error={errors.name}
           />
 
@@ -85,13 +116,18 @@ export default function NewCampaign() {
             label="Email Subject"
             placeholder="e.g. 🎯 Time to ace your exams — tips inside!"
             value={subject}
-            onChange={(e) => { setSubject(e.target.value); setErrors((v) => ({ ...v, subject: "" })); }}
+            onChange={(e) => {
+              setSubject(e.target.value);
+              setErrors((v) => ({ ...v, subject: "" }));
+            }}
             error={errors.subject}
           />
 
           {/* Audience selector */}
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-[#344054]">Target Audience</label>
+            <label className="text-sm font-medium text-[#344054]">
+              Target Audience
+            </label>
             <div className="grid grid-cols-2 gap-3">
               {AUDIENCE_OPTIONS.map((o) => (
                 <button
@@ -111,7 +147,9 @@ export default function NewCampaign() {
                   >
                     {o.label}
                   </span>
-                  <span className="text-xs text-[#667085]">{o.description}</span>
+                  <span className="text-xs text-[#667085]">
+                    {o.description}
+                  </span>
                 </button>
               ))}
             </div>
@@ -119,11 +157,15 @@ export default function NewCampaign() {
         </div>
 
         {/* Email body card */}
-        <div className="bg-white rounded-2xl p-6 flex flex-col gap-3" style={{ boxShadow: CARD_SHADOW }}>
+        <div
+          className="bg-white rounded-2xl p-6 flex flex-col gap-3"
+          style={{ boxShadow: CARD_SHADOW }}
+        >
           <div>
             <p className="font-semibold text-[#101828]">Email Body</p>
             <p className="text-sm text-[#667085] mt-0.5">
-              Write the email content. Supports rich text, headings, bullet lists, and links.
+              Write the email content. Supports rich text, headings, bullet
+              lists, and links.
             </p>
           </div>
           <InputField

@@ -9,8 +9,14 @@ import { InputField } from "@/src/components/molecules";
 import { useAdminAuthStore } from "@/src/store";
 
 const schema = yup.object({
-  email: yup.string().email("Enter a valid email").required("Email is required"),
-  password: yup.string().min(6, "Password too short").required("Password is required"),
+  email: yup
+    .string()
+    .email("Enter a valid email")
+    .required("Email is required"),
+  password: yup
+    .string()
+    .min(6, "Password too short")
+    .required("Password is required"),
 });
 
 type FormValues = yup.InferType<typeof schema>;

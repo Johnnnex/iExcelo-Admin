@@ -27,7 +27,10 @@ const AUDIENCE_OPTIONS: { value: CampaignTargetAudience; label: string }[] = [
   { value: "affiliates", label: "Affiliates" },
 ];
 
-const STATUS_VARIANT: Record<CampaignStatus, "success" | "warning" | "neutral" | "error"> = {
+const STATUS_VARIANT: Record<
+  CampaignStatus,
+  "success" | "warning" | "neutral" | "error"
+> = {
   draft: "neutral",
   queued: "warning",
   sent: "success",
@@ -53,11 +56,18 @@ function EditModal({
   const { updateCampaign, savingCampaign } = useAdminBulkEmailsStore();
   const [name, setName] = useState(item.name);
   const [subject, setSubject] = useState(item.subject);
-  const [audience, setAudience] = useState<CampaignTargetAudience>(item.targetAudience);
+  const [audience, setAudience] = useState<CampaignTargetAudience>(
+    item.targetAudience,
+  );
   const [content, setContent] = useState(item.content);
 
   const handle = async () => {
-    const ok = await updateCampaign(item.id, { name, subject, targetAudience: audience, content });
+    const ok = await updateCampaign(item.id, {
+      name,
+      subject,
+      targetAudience: audience,
+      content,
+    });
     if (ok) onClose();
   };
 
@@ -65,7 +75,10 @@ function EditModal({
     <Modal isOpen onClose={onClose} className="rounded-2xl w-full max-w-2xl">
       <div className="flex items-center justify-between p-6 border-b border-[#E4E7EC]">
         <p className="font-semibold text-[#101828]">Edit Campaign</p>
-        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#F2F4F7]">
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-lg hover:bg-[#F2F4F7]"
+        >
           <Icon icon="hugeicons:cancel-01" className="w-5 h-5 text-[#667085]" />
         </button>
       </div>
@@ -84,14 +97,20 @@ function EditModal({
           placeholder="e.g. Get ready for your exams!"
         />
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-[#344054]">Target Audience</label>
+          <label className="text-sm font-medium text-[#344054]">
+            Target Audience
+          </label>
           <select
             value={audience}
-            onChange={(e) => setAudience(e.target.value as CampaignTargetAudience)}
+            onChange={(e) =>
+              setAudience(e.target.value as CampaignTargetAudience)
+            }
             className="px-3 py-2 border border-[#D0D5DD] rounded-lg text-sm outline-none focus:border-[#007FFF]"
           >
             {AUDIENCE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
             ))}
           </select>
         </div>
@@ -148,8 +167,10 @@ function DeleteModal({
         <p className="font-semibold text-[#101828] mb-1">Delete Campaign</p>
         <p className="text-sm text-[#667085] mb-5">
           Delete{" "}
-          <span className="font-medium text-[#344054]">&quot;{item.name}&quot;</span>? This
-          cannot be undone.
+          <span className="font-medium text-[#344054]">
+            &quot;{item.name}&quot;
+          </span>
+          ? This cannot be undone.
         </p>
         <div className="flex gap-3">
           <Button
@@ -191,7 +212,8 @@ function SendModal({
   };
 
   const audienceLabel =
-    AUDIENCE_OPTIONS.find((o) => o.value === item.targetAudience)?.label ?? item.targetAudience;
+    AUDIENCE_OPTIONS.find((o) => o.value === item.targetAudience)?.label ??
+    item.targetAudience;
 
   return (
     <Modal isOpen onClose={onClose} className="rounded-2xl w-full max-w-sm">
@@ -199,9 +221,11 @@ function SendModal({
         <p className="font-semibold text-[#101828] mb-1">Send Campaign</p>
         <p className="text-sm text-[#667085] mb-5">
           Send{" "}
-          <span className="font-medium text-[#344054]">&quot;{item.name}&quot;</span> to{" "}
-          <span className="font-medium text-[#344054]">{audienceLabel}</span>? This cannot be
-          undone.
+          <span className="font-medium text-[#344054]">
+            &quot;{item.name}&quot;
+          </span>{" "}
+          to <span className="font-medium text-[#344054]">{audienceLabel}</span>
+          ? This cannot be undone.
         </p>
         <div className="flex gap-3">
           <Button
@@ -235,7 +259,8 @@ type ModalState =
 
 export default function BulkEmails() {
   const router = useRouter();
-  const { campaigns, loadingCampaigns, fetchCampaigns } = useAdminBulkEmailsStore();
+  const { campaigns, loadingCampaigns, fetchCampaigns } =
+    useAdminBulkEmailsStore();
   const { canWrite } = useAdminAuthStore();
 
   const [modal, setModal] = useState<ModalState>(null);
@@ -274,7 +299,8 @@ export default function BulkEmails() {
       header: "Audience",
       render: (c) => (
         <span className="text-sm text-[#344054]">
-          {AUDIENCE_OPTIONS.find((o) => o.value === c.targetAudience)?.label ?? c.targetAudience}
+          {AUDIENCE_OPTIONS.find((o) => o.value === c.targetAudience)?.label ??
+            c.targetAudience}
         </span>
       ),
     },
@@ -282,7 +308,10 @@ export default function BulkEmails() {
       key: "status",
       header: "Status",
       render: (c) => (
-        <StatusChip label={STATUS_LABEL[c.status]} variant={STATUS_VARIANT[c.status]} />
+        <StatusChip
+          label={STATUS_LABEL[c.status]}
+          variant={STATUS_VARIANT[c.status]}
+        />
       ),
     },
     {
@@ -364,7 +393,10 @@ export default function BulkEmails() {
         )}
       </div>
 
-      <div className="bg-white rounded-2xl flex flex-col" style={{ boxShadow: CARD_SHADOW }}>
+      <div
+        className="bg-white rounded-2xl flex flex-col"
+        style={{ boxShadow: CARD_SHADOW }}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F2F5]">
           <div>
             <p className="font-semibold text-[#101828]">All Campaigns</p>
@@ -384,13 +416,19 @@ export default function BulkEmails() {
           searchProps={{
             value: search,
             onChange: setSearch,
-            onSearch: () => { setSearchApplied(search); setPage(1); },
+            onSearch: () => {
+              setSearchApplied(search);
+              setPage(1);
+            },
             placeholder: "Search campaigns...",
           }}
           pagination
           metaData={{
             currentPage: (page - 1) * PAGE_SIZE + 1,
-            endPage: filtered.length > page * PAGE_SIZE ? page * PAGE_SIZE + 1 : (page - 1) * PAGE_SIZE + 1,
+            endPage:
+              filtered.length > page * PAGE_SIZE
+                ? page * PAGE_SIZE + 1
+                : (page - 1) * PAGE_SIZE + 1,
             totalRecords: filtered.length,
             onPageChange: (skip) => setPage(Math.floor(skip / PAGE_SIZE) + 1),
           }}

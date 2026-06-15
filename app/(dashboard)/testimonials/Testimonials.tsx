@@ -5,7 +5,10 @@ import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { Icon } from "@iconify/react";
-import { useAdminTestimonialsStore, TestimonialFormData } from "@/src/store/testimonials.store";
+import {
+  useAdminTestimonialsStore,
+  TestimonialFormData,
+} from "@/src/store/testimonials.store";
 import { useAdminAuthStore } from "@/src/store/auth.store";
 import { AdminModule, IAdminTestimonial } from "@/src/types";
 import { DataTable, Column } from "@/src/components/molecules/DataTable";
@@ -29,7 +32,13 @@ type FormValues = yup.InferType<typeof testimonialSchema>;
 
 // ─── Star Rating ───────────────────────────────────────────────────────────────
 
-function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function StarRating({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
   return (
     <div className="flex gap-1">
       {[1, 2, 3, 4, 5].map((star) => (
@@ -61,17 +70,20 @@ function TestimonialModal({
   const { createTestimonial, updateTestimonial } = useAdminTestimonialsStore();
   const isEdit = !!editItem;
 
-  const { handleSubmit, control, formState: { errors, isSubmitting } } =
-    useForm<FormValues>({
-      resolver: yupResolver(testimonialSchema),
-      defaultValues: {
-        name: editItem?.name ?? "",
-        role: editItem?.role ?? null,
-        content: editItem?.content ?? "",
-        rating: editItem?.rating ?? 5,
-        userId: editItem?.userId ?? null,
-      },
-    });
+  const {
+    handleSubmit,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<FormValues>({
+    resolver: yupResolver(testimonialSchema),
+    defaultValues: {
+      name: editItem?.name ?? "",
+      role: editItem?.role ?? null,
+      content: editItem?.content ?? "",
+      rating: editItem?.rating ?? 5,
+      userId: editItem?.userId ?? null,
+    },
+  });
 
   const onSubmit: SubmitHandler<FormValues> = async (values) => {
     const data: TestimonialFormData = {
@@ -96,8 +108,15 @@ function TestimonialModal({
           <p className="font-semibold text-[#101828]">
             {isEdit ? "Edit Testimonial" : "Add New Testimonial"}
           </p>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#F2F4F7]">
-            <Icon icon="hugeicons:cancel-01" className="w-5 h-5 text-[#667085]" />
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-[#F2F4F7]"
+          >
+            <Icon
+              icon="hugeicons:cancel-01"
+              className="w-5 h-5 text-[#667085]"
+            />
           </button>
         </div>
 
@@ -165,7 +184,9 @@ function TestimonialModal({
                 placeholder="User ID"
                 error={errors.userId?.message}
                 value={field.value ?? ""}
-                onChange={(e) => field.onChange((e.target.value as string) || null)}
+                onChange={(e) =>
+                  field.onChange((e.target.value as string) || null)
+                }
                 onBlur={field.onBlur}
               />
             )}
@@ -230,7 +251,10 @@ function DeleteModal({
           >
             Delete
           </Button>
-          <Button onClick={onClose} className="flex-1 bg-[#F2F4F7] text-[#344054] hover:bg-[#E4E7EC]">
+          <Button
+            onClick={onClose}
+            className="flex-1 bg-[#F2F4F7] text-[#344054] hover:bg-[#E4E7EC]"
+          >
             Cancel
           </Button>
         </div>
@@ -249,8 +273,11 @@ type ModalState =
 
 export default function Testimonials() {
   const {
-    testimonials, loadingTestimonials,
-    fetchTestimonials, togglePublish, reorder,
+    testimonials,
+    loadingTestimonials,
+    fetchTestimonials,
+    togglePublish,
+    reorder,
   } = useAdminTestimonialsStore();
   const { canWrite } = useAdminAuthStore();
 
@@ -304,7 +331,9 @@ export default function Testimonials() {
       render: (t) => {
         const index = testimonials.findIndex((x) => x.id === t.id);
         if (!canWriteTestimonials) {
-          return <span className="text-sm text-[#667085]">{t.displayOrder + 1}</span>;
+          return (
+            <span className="text-sm text-[#667085]">{t.displayOrder + 1}</span>
+          );
         }
         return (
           <div className="flex items-center gap-1">
@@ -313,14 +342,20 @@ export default function Testimonials() {
               onClick={() => moveUp(index)}
               className="p-1 rounded hover:bg-[#F2F4F7] disabled:opacity-30 transition-colors"
             >
-              <Icon icon="hugeicons:arrow-up-01" className="w-3.5 h-3.5 text-[#667085]" />
+              <Icon
+                icon="hugeicons:arrow-up-01"
+                className="w-3.5 h-3.5 text-[#667085]"
+              />
             </button>
             <button
               disabled={index === testimonials.length - 1}
               onClick={() => moveDown(index)}
               className="p-1 rounded hover:bg-[#F2F4F7] disabled:opacity-30 transition-colors"
             >
-              <Icon icon="hugeicons:arrow-down-01" className="w-3.5 h-3.5 text-[#667085]" />
+              <Icon
+                icon="hugeicons:arrow-down-01"
+                className="w-3.5 h-3.5 text-[#667085]"
+              />
             </button>
           </div>
         );
@@ -384,7 +419,11 @@ export default function Testimonials() {
                     : "border-[#099137] text-[#099137] hover:bg-[#F0FDF4]"
                 } disabled:opacity-50`}
               >
-                {togglingId === t.id ? "…" : t.isPublished ? "Unpublish" : "Publish"}
+                {togglingId === t.id
+                  ? "…"
+                  : t.isPublished
+                    ? "Unpublish"
+                    : "Publish"}
               </button>
               <button
                 onClick={() => setModal({ type: "edit", item: t })}
@@ -427,7 +466,10 @@ export default function Testimonials() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl flex flex-col" style={{ boxShadow: CARD_SHADOW }}>
+      <div
+        className="bg-white rounded-2xl flex flex-col"
+        style={{ boxShadow: CARD_SHADOW }}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F2F5]">
           <div>
             <p className="font-semibold text-[#101828]">All Testimonials</p>
@@ -445,13 +487,19 @@ export default function Testimonials() {
           searchProps={{
             value: search,
             onChange: setSearch,
-            onSearch: () => { setSearchApplied(search); setPage(1); },
+            onSearch: () => {
+              setSearchApplied(search);
+              setPage(1);
+            },
             placeholder: "Search testimonials...",
           }}
           pagination
           metaData={{
             currentPage: (page - 1) * PAGE_SIZE + 1,
-            endPage: filtered.length > page * PAGE_SIZE ? page * PAGE_SIZE + 1 : (page - 1) * PAGE_SIZE + 1,
+            endPage:
+              filtered.length > page * PAGE_SIZE
+                ? page * PAGE_SIZE + 1
+                : (page - 1) * PAGE_SIZE + 1,
             totalRecords: filtered.length,
             onPageChange: (skip) => setPage(Math.floor(skip / PAGE_SIZE) + 1),
           }}

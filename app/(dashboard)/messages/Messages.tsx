@@ -4,11 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useAdminMessagesStore } from "@/src/store/messages.store";
 import { useAdminAuthStore } from "@/src/store/auth.store";
-import {
-  AdminModule,
-  IAdminMessageFlag,
-  FlagStatus,
-} from "@/src/types";
+import { AdminModule, IAdminMessageFlag, FlagStatus } from "@/src/types";
 import { DataTable, Column } from "@/src/components/molecules/DataTable";
 import { Modal } from "@/src/components/molecules/Modal";
 import { Button } from "@/src/components/atoms/Button";
@@ -46,7 +42,7 @@ function SuspendModal({
   const sender = flag.message?.sender;
   const name = sender
     ? `${sender.firstName} ${sender.lastName}`
-    : flag.message?.sender?.email ?? "this user";
+    : (flag.message?.sender?.email ?? "this user");
 
   const handle = async () => {
     if (!date) return;
@@ -60,11 +56,13 @@ function SuspendModal({
       <div className="p-6">
         <p className="font-semibold text-[#101828] mb-1">Suspend User</p>
         <p className="text-sm text-[#667085] mb-5">
-          Suspend{" "}
-          <span className="font-medium text-[#344054]">{name}</span> until:
+          Suspend <span className="font-medium text-[#344054]">{name}</span>{" "}
+          until:
         </p>
         <div className="flex flex-col gap-1 mb-5">
-          <label className="text-sm font-medium text-[#344054]">Suspended Until</label>
+          <label className="text-sm font-medium text-[#344054]">
+            Suspended Until
+          </label>
           <input
             type="date"
             value={date}
@@ -82,7 +80,10 @@ function SuspendModal({
           >
             Suspend
           </Button>
-          <Button onClick={onClose} className="flex-1 bg-[#F2F4F7] text-[#344054] hover:bg-[#E4E7EC]">
+          <Button
+            onClick={onClose}
+            className="flex-1 bg-[#F2F4F7] text-[#344054] hover:bg-[#E4E7EC]"
+          >
             Cancel
           </Button>
         </div>
@@ -107,7 +108,11 @@ function FlagDetailModal({
     <Modal isOpen onClose={onClose} className="rounded-2xl w-full max-w-lg">
       <div className="flex items-center justify-between p-6 border-b border-[#E4E7EC]">
         <p className="font-semibold text-[#101828]">Flag Details</p>
-        <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#F2F4F7]">
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1.5 rounded-lg hover:bg-[#F2F4F7]"
+        >
           <Icon icon="hugeicons:cancel-01" className="w-5 h-5 text-[#667085]" />
         </button>
       </div>
@@ -117,7 +122,9 @@ function FlagDetailModal({
             Flagged Message
           </p>
           <div className="bg-[#F9FAFB] rounded-lg p-4 border border-[#E4E7EC]">
-            <p className="text-sm text-[#344054]">{flag.message?.content ?? "—"}</p>
+            <p className="text-sm text-[#344054]">
+              {flag.message?.content ?? "—"}
+            </p>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4 text-sm">
@@ -141,7 +148,9 @@ function FlagDetailModal({
           </div>
           <div>
             <p className="text-xs text-[#667085] mb-0.5">Reason</p>
-            <p className="text-[#344054]">{flag.reason ?? "No reason provided"}</p>
+            <p className="text-[#344054]">
+              {flag.reason ?? "No reason provided"}
+            </p>
           </div>
           <div>
             <p className="text-xs text-[#667085] mb-0.5">Chat Type</p>
@@ -158,7 +167,10 @@ function FlagDetailModal({
         </div>
       </div>
       <div className="p-6 border-t border-[#E4E7EC]">
-        <Button onClick={onClose} className="w-full bg-[#F2F4F7] text-[#344054] hover:bg-[#E4E7EC]">
+        <Button
+          onClick={onClose}
+          className="w-full bg-[#F2F4F7] text-[#344054] hover:bg-[#E4E7EC]"
+        >
           Close
         </Button>
       </div>
@@ -201,7 +213,6 @@ export default function Messages() {
     void fetchFlags();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
 
   const columns: Column<IAdminMessageFlag>[] = [
     {
@@ -310,7 +321,10 @@ export default function Messages() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl flex flex-col" style={{ boxShadow: CARD_SHADOW }}>
+      <div
+        className="bg-white rounded-2xl flex flex-col"
+        style={{ boxShadow: CARD_SHADOW }}
+      >
         {/* Table header + filter */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F2F5]">
           <div>

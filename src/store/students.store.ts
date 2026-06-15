@@ -31,7 +31,8 @@ export const useAdminStudentsStore = create<StudentsState>()((set, get) => ({
   loadingStudents: false,
   searchTerm: "",
 
-  setSearchTerm: (term) => set({ searchTerm: term, cursors: [null], cursorPage: 1 }),
+  setSearchTerm: (term) =>
+    set({ searchTerm: term, cursors: [null], cursorPage: 1 }),
 
   fetchStudents: async (page = 1) => {
     set({ loadingStudents: true });
@@ -43,7 +44,11 @@ export const useAdminStudentsStore = create<StudentsState>()((set, get) => ({
       if (searchTerm) params.set("search", searchTerm);
 
       const res = await api.get<{
-        data: { items: IAdminStudentListItem[]; nextCursor: string | null; hasMore: boolean };
+        data: {
+          items: IAdminStudentListItem[];
+          nextCursor: string | null;
+          hasMore: boolean;
+        };
       }>(`/admin/students?${params.toString()}`);
 
       const { items, nextCursor, hasMore } = res.data.data;
@@ -53,7 +58,12 @@ export const useAdminStudentsStore = create<StudentsState>()((set, get) => ({
         if (nextCursor && newCursors.length <= page) {
           newCursors.push(nextCursor);
         }
-        return { students: items, hasMore, cursors: newCursors, cursorPage: page };
+        return {
+          students: items,
+          hasMore,
+          cursors: newCursors,
+          cursorPage: page,
+        };
       });
     } catch (error) {
       handleAxiosError(error, "Failed to load students");
@@ -77,7 +87,9 @@ export const useAdminStudentsStore = create<StudentsState>()((set, get) => ({
       toast.success("Student deactivated");
       set((s) => ({
         students: s.students.map((st) =>
-          st.userId === userId ? { ...st, user: { ...st.user, isActive: false } } : st,
+          st.userId === userId
+            ? { ...st, user: { ...st.user, isActive: false } }
+            : st,
         ),
       }));
     } catch (error) {
@@ -91,7 +103,9 @@ export const useAdminStudentsStore = create<StudentsState>()((set, get) => ({
       toast.success("Student reactivated");
       set((s) => ({
         students: s.students.map((st) =>
-          st.userId === userId ? { ...st, user: { ...st.user, isActive: true } } : st,
+          st.userId === userId
+            ? { ...st, user: { ...st.user, isActive: true } }
+            : st,
         ),
       }));
     } catch (error) {
@@ -105,7 +119,9 @@ export const useAdminStudentsStore = create<StudentsState>()((set, get) => ({
       toast.success("Student suspended");
       set((s) => ({
         students: s.students.map((st) =>
-          st.userId === userId ? { ...st, user: { ...st.user, suspendedUntil } } : st,
+          st.userId === userId
+            ? { ...st, user: { ...st.user, suspendedUntil } }
+            : st,
         ),
       }));
     } catch (error) {
@@ -119,7 +135,9 @@ export const useAdminStudentsStore = create<StudentsState>()((set, get) => ({
       toast.success("Suspension lifted");
       set((s) => ({
         students: s.students.map((st) =>
-          st.userId === userId ? { ...st, user: { ...st.user, suspendedUntil: null } } : st,
+          st.userId === userId
+            ? { ...st, user: { ...st.user, suspendedUntil: null } }
+            : st,
         ),
       }));
     } catch (error) {

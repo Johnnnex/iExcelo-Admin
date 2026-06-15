@@ -15,10 +15,17 @@ function fmtProgressLabel(iso: string, granularity: string): string {
   if (granularity === "week") {
     const end = new Date(d);
     end.setUTCDate(d.getUTCDate() + 6);
-    const month = d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+    const month = d.toLocaleDateString("en-US", {
+      month: "short",
+      timeZone: "UTC",
+    });
     return `${month} ${d.getUTCDate()}–${end.getUTCDate()}`;
   }
-  return d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", timeZone: "UTC" });
+  return d.toLocaleDateString("en-US", {
+    weekday: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 // ── Shared UI atoms ───────────────────────────────────────────────────────────
@@ -31,7 +38,10 @@ const Spinner = () => (
 
 const EmptyChart = ({ label }: { label: string }) => (
   <div className="flex flex-col items-center justify-center h-full text-center">
-    <Icon icon="hugeicons:chart-evaluation" className="w-12 h-12 text-gray-300 mb-3" />
+    <Icon
+      icon="hugeicons:chart-evaluation"
+      className="w-12 h-12 text-gray-300 mb-3"
+    />
     <p className="text-[#757575] text-sm">{label}</p>
   </div>
 );
@@ -48,7 +58,8 @@ function GranularityDropdown({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -217,9 +228,12 @@ const Analytics = () => {
     <div>
       {/* Header */}
       <section className="mb-5">
-        <h1 className="text-xl md:text-2xl font-[600] text-[#171717]">Analytics</h1>
+        <h1 className="text-xl md:text-2xl font-[600] text-[#171717]">
+          Analytics
+        </h1>
         <p className="text-gray-500 text-sm mt-1">
-          Platform-wide activity — exams, revenue, subjects, and question patterns
+          Platform-wide activity — exams, revenue, subjects, and question
+          patterns
         </p>
       </section>
 
@@ -251,7 +265,9 @@ const Analytics = () => {
                   {card.value}
                 </p>
               )}
-              <p className="text-[#757575] font-[500] leading-5 text-[.75rem]">{card.sub}</p>
+              <p className="text-[#757575] font-[500] leading-5 text-[.75rem]">
+                {card.sub}
+              </p>
             </div>
           </div>
         ))}
@@ -324,7 +340,7 @@ const Analytics = () => {
             <div className="flex-1 min-h-[280px]">
               {isLoadingDistribution ? (
                 <Spinner />
-              ) : questionDistribution.length === 0 ? (
+              ) : distTotal === 0 ? (
                 <EmptyChart label="No questions answered yet" />
               ) : (
                 <Chart

@@ -22,6 +22,7 @@ export type ExamTypeValues = yup.InferType<typeof examTypeSchema>;
 export const subjectSchema = yup.object({
   name: yup.string().required("Name is required"),
   description: yup.string().nullable().default(null),
+  isActive: yup.boolean().default(true),
 });
 export type SubjectValues = yup.InferType<typeof subjectSchema>;
 
@@ -42,7 +43,9 @@ export type PassageValues = yup.InferType<typeof passageSchema>;
 export const questionSchema = yup.object({
   examTypeId: yup.string().required("Exam type is required"),
   subjectId: yup.string().required("Subject is required"),
-  examTypeSubjectId: yup.string().required("Exam type + subject link is required"),
+  examTypeSubjectId: yup
+    .string()
+    .required("Exam type + subject link is required"),
   questionText: yup.string().required("Question text is required"),
   type: yup.string().required("Question type is required"),
   category: yup.string().required("Category is required"),

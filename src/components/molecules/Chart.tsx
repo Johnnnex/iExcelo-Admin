@@ -27,7 +27,6 @@ import {
   Cell,
 } from "recharts";
 
-
 type IChartTypes = {
   type?: "line" | "bar" | "pie" | "area";
   data?: any[];
@@ -266,7 +265,11 @@ const Chart = ({
             <Tooltip
               cursor={false}
               content={
-                (!!userBasedToolTip ? userBasedToolTip : <CustomTooltip />) as any
+                (!!userBasedToolTip ? (
+                  userBasedToolTip
+                ) : (
+                  <CustomTooltip />
+                )) as any
               }
               {...(props?.toolTip as any)}
             />
@@ -344,7 +347,11 @@ const Chart = ({
               <Tooltip
                 cursor={false}
                 content={
-                  (!!userBasedToolTip ? userBasedToolTip : <CustomTooltip />) as any
+                  (!!userBasedToolTip ? (
+                    userBasedToolTip
+                  ) : (
+                    <CustomTooltip />
+                  )) as any
                 }
                 {...(props?.toolTip as any)}
               />
@@ -430,18 +437,20 @@ const Chart = ({
                 {...props?.barChartProps?.bar}
               >
                 {prop.useDataFill &&
-                  (userData ?? []).map(
-                    (entry: any, i: number) => (
-                      <Cell key={`cell-${i}`} fill={entry.fill ?? prop.color} />
-                    ),
-                  )}
+                  (userData ?? []).map((entry: any, i: number) => (
+                    <Cell key={`cell-${i}`} fill={entry.fill ?? prop.color} />
+                  ))}
               </Bar>
             ))}
             {props?.prefersToolTip && (
               <Tooltip
                 cursor={false}
                 content={
-                  (!!userBasedToolTip ? userBasedToolTip : <CustomTooltip />) as any
+                  (!!userBasedToolTip ? (
+                    userBasedToolTip
+                  ) : (
+                    <CustomTooltip />
+                  )) as any
                 }
                 {...(props?.toolTip as any)}
               />

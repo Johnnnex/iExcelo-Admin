@@ -29,7 +29,8 @@ export const useAdminSponsorsStore = create<SponsorsState>()((set, get) => ({
   loadingSponsors: false,
   searchTerm: "",
 
-  setSearchTerm: (term) => set({ searchTerm: term, cursors: [null], cursorPage: 1 }),
+  setSearchTerm: (term) =>
+    set({ searchTerm: term, cursors: [null], cursorPage: 1 }),
 
   fetchSponsors: async (page = 1) => {
     set({ loadingSponsors: true });
@@ -41,7 +42,11 @@ export const useAdminSponsorsStore = create<SponsorsState>()((set, get) => ({
       if (searchTerm) params.set("search", searchTerm);
 
       const res = await api.get<{
-        data: { items: IAdminSponsorListItem[]; nextCursor: string | null; hasMore: boolean };
+        data: {
+          items: IAdminSponsorListItem[];
+          nextCursor: string | null;
+          hasMore: boolean;
+        };
       }>(`/admin/sponsors?${params.toString()}`);
 
       const { items, nextCursor, hasMore } = res.data.data;
@@ -51,7 +56,12 @@ export const useAdminSponsorsStore = create<SponsorsState>()((set, get) => ({
         if (nextCursor && newCursors.length <= page) {
           newCursors.push(nextCursor);
         }
-        return { sponsors: items, hasMore, cursors: newCursors, cursorPage: page };
+        return {
+          sponsors: items,
+          hasMore,
+          cursors: newCursors,
+          cursorPage: page,
+        };
       });
     } catch (error) {
       handleAxiosError(error, "Failed to load sponsors");
@@ -75,7 +85,9 @@ export const useAdminSponsorsStore = create<SponsorsState>()((set, get) => ({
       toast.success("Sponsor deactivated");
       set((s) => ({
         sponsors: s.sponsors.map((sp) =>
-          sp.userId === userId ? { ...sp, user: { ...sp.user, isActive: false } } : sp,
+          sp.userId === userId
+            ? { ...sp, user: { ...sp.user, isActive: false } }
+            : sp,
         ),
       }));
     } catch (error) {
@@ -89,7 +101,9 @@ export const useAdminSponsorsStore = create<SponsorsState>()((set, get) => ({
       toast.success("Sponsor reactivated");
       set((s) => ({
         sponsors: s.sponsors.map((sp) =>
-          sp.userId === userId ? { ...sp, user: { ...sp.user, isActive: true } } : sp,
+          sp.userId === userId
+            ? { ...sp, user: { ...sp.user, isActive: true } }
+            : sp,
         ),
       }));
     } catch (error) {

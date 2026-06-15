@@ -51,7 +51,10 @@ export default function AcceptInvite() {
       toast.success("Account created! You can now log in.");
       router.replace("/login");
     } catch (error) {
-      handleAxiosError(error, "Failed to accept invite. The link may have expired.");
+      handleAxiosError(
+        error,
+        "Failed to accept invite. The link may have expired.",
+      );
     }
   };
 
@@ -59,7 +62,10 @@ export default function AcceptInvite() {
     return (
       <div className="w-full max-w-[400px]">
         <div className="bg-white rounded-2xl p-8 shadow-[0_24px_48px_rgba(0,0,0,0.2)] text-center">
-          <Icon icon="hugeicons:alert-circle" className="w-12 h-12 text-[#D42620] mx-auto mb-4" />
+          <Icon
+            icon="hugeicons:alert-circle"
+            className="w-12 h-12 text-[#D42620] mx-auto mb-4"
+          />
           <h2 className="text-lg font-bold text-[#101828]">Invalid Link</h2>
           <p className="text-sm text-[#667085] mt-2">
             This invite link is missing or invalid. Please request a new one.
@@ -77,8 +83,12 @@ export default function AcceptInvite() {
             <Icon icon="hugeicons:user-add-01" className="w-6 h-6 text-white" />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-bold text-[#101828]">Accept Invitation</h1>
-            <p className="text-sm text-[#667085] mt-1">Set your password to activate your account</p>
+            <h1 className="text-xl font-bold text-[#101828]">
+              Accept Invitation
+            </h1>
+            <p className="text-sm text-[#667085] mt-1">
+              Set your password to activate your account
+            </p>
           </div>
         </div>
 

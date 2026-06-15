@@ -25,10 +25,15 @@ export default function DashboardLayout({
 
   return (
     <section className="flex h-screen bg-white">
-      <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AdminSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
       <div className="flex flex-col flex-1 overflow-hidden">
         <AdminHeader onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-6 bg-[#F9FAFB]">{children}</main>
+        <main className="flex-1 overflow-y-auto p-6 bg-[#F9FAFB]">
+          {children}
+        </main>
       </div>
     </section>
   );

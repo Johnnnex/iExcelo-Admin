@@ -43,7 +43,9 @@ function SuspendModal({
           be blocked until this date.
         </p>
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-[#344054]">Suspend Until</label>
+          <label className="text-sm font-medium text-[#344054]">
+            Suspend Until
+          </label>
           <input
             type="date"
             value={date}
@@ -60,7 +62,10 @@ function SuspendModal({
           >
             Suspend
           </Button>
-          <Button onClick={onClose} className="flex-1 bg-[#F2F4F7]! text-[#344054]!">
+          <Button
+            onClick={onClose}
+            className="flex-1 bg-[#F2F4F7]! text-[#344054]!"
+          >
             Cancel
           </Button>
         </div>
@@ -108,7 +113,10 @@ function ConfirmModal({
           >
             {confirmLabel}
           </Button>
-          <Button onClick={onClose} className="flex-1 bg-[#F2F4F7]! text-[#344054]!">
+          <Button
+            onClick={onClose}
+            className="flex-1 bg-[#F2F4F7]! text-[#344054]!"
+          >
             Cancel
           </Button>
         </div>
@@ -186,7 +194,9 @@ export default function Students() {
       key: "overallAccuracy",
       header: "Accuracy",
       render: (s) => (
-        <span className="text-sm text-[#344054]">{s.overallAccuracy.toFixed(1)}%</span>
+        <span className="text-sm text-[#344054]">
+          {s.overallAccuracy.toFixed(1)}%
+        </span>
       ),
     },
     {
@@ -215,8 +225,10 @@ export default function Students() {
       render: (s) => {
         const isSuspended =
           s.user.suspendedUntil && new Date(s.user.suspendedUntil) > now;
-        if (!s.user.isActive) return <StatusChip label="Inactive" variant="error" />;
-        if (isSuspended) return <StatusChip label="Suspended" variant="warning" />;
+        if (!s.user.isActive)
+          return <StatusChip label="Inactive" variant="error" />;
+        if (isSuspended)
+          return <StatusChip label="Suspended" variant="warning" />;
         return <StatusChip label="Active" variant="success" />;
       },
     },
@@ -240,21 +252,21 @@ export default function Students() {
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
               onClick={() => setModal({ type: "reset-password", student: s })}
-              className="text-xs px-2 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#EFF8FF] transition-colors whitespace-nowrap"
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors whitespace-nowrap"
             >
               Reset Password
             </button>
             {s.user.isActive ? (
               <button
                 onClick={() => setModal({ type: "deactivate", student: s })}
-                className="text-xs px-2 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
+                className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
               >
                 Deactivate
               </button>
             ) : (
               <button
                 onClick={() => setModal({ type: "reactivate", student: s })}
-                className="text-xs px-2 py-1 rounded-lg border border-[#099137] text-[#099137] hover:bg-[#F0FDF4] transition-colors"
+                className="text-xs px-2.5 py-1 rounded-lg border border-[#099137] text-[#099137] hover:bg-[#F0FDF4] transition-colors"
               >
                 Reactivate
               </button>
@@ -262,14 +274,14 @@ export default function Students() {
             {isSuspended ? (
               <button
                 onClick={() => setModal({ type: "unsuspend", student: s })}
-                className="text-xs px-2 py-1 rounded-lg border border-[#F3A218] text-[#F3A218] hover:bg-[#FFFAEB] transition-colors"
+                className="text-xs px-2.5 py-1 rounded-lg border border-[#F3A218] text-[#F3A218] hover:bg-[#FFFAEB] transition-colors"
               >
                 Unsuspend
               </button>
             ) : (
               <button
                 onClick={() => setModal({ type: "suspend", student: s })}
-                className="text-xs px-2 py-1 rounded-lg border border-[#667085] text-[#667085] hover:bg-[#F9FAFB] transition-colors"
+                className="text-xs px-2.5 py-1 rounded-lg border border-[#667085] text-[#667085] hover:bg-[#F9FAFB] transition-colors"
               >
                 Suspend
               </button>
@@ -316,8 +328,10 @@ export default function Students() {
             endPage,
             totalRecords: students.length,
             onPageChange: (p) => {
-              if (p < cursorPage && prevPage !== null) void fetchStudents(prevPage);
-              else if (p > cursorPage && hasMore) void fetchStudents(cursorPage + 1);
+              if (p < cursorPage && prevPage !== null)
+                void fetchStudents(prevPage);
+              else if (p > cursorPage && hasMore)
+                void fetchStudents(cursorPage + 1);
             },
           }}
         />
@@ -368,4 +382,3 @@ export default function Students() {
     </div>
   );
 }
-

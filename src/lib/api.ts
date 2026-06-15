@@ -1,9 +1,6 @@
 "use client";
 
-import axios, {
-  AxiosRequestConfig,
-  InternalAxiosRequestConfig,
-} from "axios";
+import axios, { AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
 import { API_URL, X_API_KEY } from "@/src/utils";
 
 export const api = axios.create({
@@ -12,24 +9,22 @@ export const api = axios.create({
 });
 
 // Attach Bearer token from admin auth store on every request
-api.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    if (typeof window !== "undefined") {
-      // Lazy import to avoid circular dep — read persisted zustand state directly
-      const raw = localStorage.getItem("admin-auth");
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as { state?: { accessToken?: string } };
-          const token = parsed?.state?.accessToken;
-          if (token) config.headers.Authorization = `Bearer ${token}`;
-        } catch {
-          // ignore
-        }
+api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  if (typeof window !== "undefined") {
+    // Lazy import to avoid circular dep — read persisted zustand state directly
+    const raw = localStorage.getItem("admin-auth");
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as { state?: { accessToken?: string } };
+        const token = parsed?.state?.accessToken;
+        if (token) config.headers.Authorization = `Bearer ${token}`;
+      } catch {
+        // ignore
       }
     }
-    return config;
-  },
-);
+  }
+  return config;
+});
 
 // On 401 clear auth and redirect to login
 api.interceptors.response.use(

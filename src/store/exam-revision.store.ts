@@ -8,6 +8,7 @@ import {
   IExamType,
   ISubject,
   IExamTypeSubject,
+  IExamTypeSubjectWithStats,
   ITopic,
   IPassage,
   IQuestion,
@@ -30,28 +31,67 @@ interface ExamRevisionState {
   loadingExamTypes: boolean;
   setExamTypesSearch: (s: string) => void;
   fetchExamTypes: (page?: number) => Promise<void>;
-  createExamType: (data: CreateExamTypeDto, onSuccess: () => void) => Promise<void>;
-  updateExamType: (id: string, data: Partial<CreateExamTypeDto & { isActive: boolean }>, onSuccess: () => void) => Promise<void>;
+  createExamType: (
+    data: CreateExamTypeDto,
+    onSuccess: () => void,
+  ) => Promise<void>;
+  updateExamType: (
+    id: string,
+    data: Partial<CreateExamTypeDto & { isActive: boolean }>,
+    onSuccess: () => void,
+  ) => Promise<void>;
   deleteExamType: (id: string) => Promise<void>;
 
   // Subjects
   subjects: ISubject[];
+  subjectsAll: ISubject[];
   subjectsTotal: number;
   subjectsPage: number;
   subjectsSearch: string;
   loadingSubjects: boolean;
   setSubjectsSearch: (s: string) => void;
   fetchSubjects: (page?: number) => Promise<void>;
-  createSubject: (data: { name: string; description?: string | null }, onSuccess: () => void) => Promise<void>;
-  updateSubject: (id: string, data: Partial<{ name: string; description: string | null; isActive: boolean }>, onSuccess: () => void) => Promise<void>;
+  fetchAllSubjectsForSelect: () => Promise<void>;
+  createSubject: (
+    data: { name: string; description?: string | null; isActive?: boolean },
+    onSuccess: () => void,
+  ) => Promise<void>;
+  updateSubject: (
+    id: string,
+    data: Partial<{
+      name: string;
+      description: string | null;
+      isActive: boolean;
+    }>,
+    onSuccess: () => void,
+  ) => Promise<void>;
   deleteSubject: (id: string) => Promise<void>;
 
-  // ExamTypeSubjects
+  // ExamTypeSubjects (per exam-type, for linking UI)
   examTypeSubjects: IExamTypeSubject[];
   loadingEts: boolean;
   fetchExamTypeSubjects: (examTypeId?: string) => Promise<void>;
-  linkExamTypeSubject: (examTypeId: string, subjectId: string, isCompulsory?: boolean, onSuccess?: () => void) => Promise<void>;
+  linkExamTypeSubject: (
+    examTypeId: string,
+    subjectId: string,
+    isCompulsory?: boolean,
+    onSuccess?: () => void,
+  ) => Promise<void>;
   unlinkExamTypeSubject: (id: string) => Promise<void>;
+  updateEts: (id: string, data: { isCompulsory: boolean }) => Promise<void>;
+
+  // ETS all (paginated with stats, for the links table)
+  etsAll: IExamTypeSubjectWithStats[];
+  etsAllTotal: number;
+  etsAllPage: number;
+  etsAllSearch: string;
+  etsAllExamTypeFilter: string;
+  etsAllSubjectFilter: string;
+  loadingEtsAll: boolean;
+  setEtsAllSearch: (s: string) => void;
+  setEtsAllExamTypeFilter: (id: string) => void;
+  setEtsAllSubjectFilter: (id: string) => void;
+  fetchAllEts: (page?: number) => Promise<void>;
 
   // Topics
   topics: ITopic[];
@@ -63,8 +103,15 @@ interface ExamRevisionState {
   setTopicSubjectFilter: (subjectId: string) => void;
   setTopicsSearch: (s: string) => void;
   fetchTopics: (page?: number) => Promise<void>;
-  createTopic: (data: { subjectId: string; name: string; content?: string }, onSuccess: () => void) => Promise<void>;
-  updateTopic: (id: string, data: Partial<{ name: string; content: string; isActive: boolean }>, onSuccess: () => void) => Promise<void>;
+  createTopic: (
+    data: { subjectId: string; name: string; content?: string },
+    onSuccess: () => void,
+  ) => Promise<void>;
+  updateTopic: (
+    id: string,
+    data: Partial<{ name: string; content: string; isActive: boolean }>,
+    onSuccess: () => void,
+  ) => Promise<void>;
   deleteTopic: (id: string) => Promise<void>;
 
   // Passages
@@ -77,8 +124,15 @@ interface ExamRevisionState {
   setPassageEtsFilter: (etsId: string) => void;
   setPassagesSearch: (s: string) => void;
   fetchPassages: (page?: number) => Promise<void>;
-  createPassage: (data: { examTypeSubjectId: string; title: string; content: string }, onSuccess: () => void) => Promise<void>;
-  updatePassage: (id: string, data: Partial<{ title: string; content: string; isActive: boolean }>, onSuccess: () => void) => Promise<void>;
+  createPassage: (
+    data: { examTypeSubjectId: string; title: string; content: string },
+    onSuccess: () => void,
+  ) => Promise<void>;
+  updatePassage: (
+    id: string,
+    data: Partial<{ title: string; content: string; isActive: boolean }>,
+    onSuccess: () => void,
+  ) => Promise<void>;
   deletePassage: (id: string) => Promise<void>;
 
   // Questions (list only — form is on subpage)
@@ -93,8 +147,11 @@ interface ExamRevisionState {
     difficulty: string;
     search: string;
   };
-  setQuestionFilters: (filters: Partial<ExamRevisionState["questionFilters"]>) => void;
+  setQuestionFilters: (
+    filters: Partial<ExamRevisionState["questionFilters"]>,
+  ) => void;
   fetchQuestions: (page?: number) => Promise<void>;
+  updateQuestion: (id: string, data: { isActive: boolean }) => Promise<void>;
   deleteQuestion: (id: string) => Promise<void>;
 }
 
@@ -121,12 +178,19 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
     set({ loadingExamTypes: true, examTypesPage: page });
     try {
       const { examTypesSearch } = get();
-      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(LIMIT),
+      });
       if (examTypesSearch) params.set("search", examTypesSearch);
       const res = await api.get<{ data: PaginatedState<IExamType> }>(
         `/admin/exam-revision/exam-types?${params}`,
       );
-      set({ examTypes: res.data.data.items, examTypesTotal: res.data.data.total, examTypesPage: res.data.data.page });
+      set({
+        examTypes: res.data.data.items,
+        examTypesTotal: res.data.data.total,
+        examTypesPage: res.data.data.page,
+      });
     } catch (error) {
       handleAxiosError(error, "Failed to load exam types");
     } finally {
@@ -168,6 +232,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
 
   // ─── Subjects ─────────────────────────────────────────────────────────────
   subjects: [],
+  subjectsAll: [],
   subjectsTotal: 0,
   subjectsPage: 1,
   subjectsSearch: "",
@@ -175,16 +240,34 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
 
   setSubjectsSearch: (s) => set({ subjectsSearch: s }),
 
+  fetchAllSubjectsForSelect: async () => {
+    try {
+      const res = await api.get<{ data: PaginatedState<ISubject> }>(
+        `/admin/exam-revision/subjects?page=1&limit=500`,
+      );
+      set({ subjectsAll: res.data.data.items });
+    } catch (error) {
+      handleAxiosError(error, "Failed to load subjects");
+    }
+  },
+
   fetchSubjects: async (page = 1) => {
     set({ loadingSubjects: true, subjectsPage: page });
     try {
       const { subjectsSearch } = get();
-      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(LIMIT),
+      });
       if (subjectsSearch) params.set("search", subjectsSearch);
       const res = await api.get<{ data: PaginatedState<ISubject> }>(
         `/admin/exam-revision/subjects?${params}`,
       );
-      set({ subjects: res.data.data.items, subjectsTotal: res.data.data.total, subjectsPage: res.data.data.page });
+      set({
+        subjects: res.data.data.items,
+        subjectsTotal: res.data.data.total,
+        subjectsPage: res.data.data.page,
+      });
     } catch (error) {
       handleAxiosError(error, "Failed to load subjects");
     } finally {
@@ -227,6 +310,43 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
   // ─── ExamTypeSubjects ─────────────────────────────────────────────────────
   examTypeSubjects: [],
   loadingEts: false,
+  etsAll: [],
+  etsAllTotal: 0,
+  etsAllPage: 1,
+  etsAllSearch: "",
+  etsAllExamTypeFilter: "",
+  etsAllSubjectFilter: "",
+  loadingEtsAll: false,
+
+  setEtsAllSearch: (s) => set({ etsAllSearch: s }),
+  setEtsAllExamTypeFilter: (id) => set({ etsAllExamTypeFilter: id }),
+  setEtsAllSubjectFilter: (id) => set({ etsAllSubjectFilter: id }),
+
+  fetchAllEts: async (page = 1) => {
+    set({ loadingEtsAll: true, etsAllPage: page });
+    try {
+      const { etsAllSearch, etsAllExamTypeFilter, etsAllSubjectFilter } = get();
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(LIMIT),
+      });
+      if (etsAllSearch) params.set("search", etsAllSearch);
+      if (etsAllExamTypeFilter) params.set("examTypeId", etsAllExamTypeFilter);
+      if (etsAllSubjectFilter) params.set("subjectId", etsAllSubjectFilter);
+      const res = await api.get<{
+        data: PaginatedState<IExamTypeSubjectWithStats>;
+      }>(`/admin/exam-revision/ets?${params}`);
+      set({
+        etsAll: res.data.data.items,
+        etsAllTotal: res.data.data.total,
+        etsAllPage: res.data.data.page,
+      });
+    } catch (error) {
+      handleAxiosError(error, "Failed to load ETS");
+    } finally {
+      set({ loadingEtsAll: false });
+    }
+  },
 
   fetchExamTypeSubjects: async (examTypeId) => {
     set({ loadingEts: true });
@@ -243,7 +363,12 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
     }
   },
 
-  linkExamTypeSubject: async (examTypeId, subjectId, isCompulsory, onSuccess) => {
+  linkExamTypeSubject: async (
+    examTypeId,
+    subjectId,
+    isCompulsory,
+    onSuccess,
+  ) => {
     try {
       await api.post("/admin/exam-revision/exam-type-subjects", {
         examTypeId,
@@ -253,6 +378,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
       toast.success("Subject linked");
       onSuccess?.();
       void get().fetchExamTypeSubjects(examTypeId);
+      void get().fetchAllEts(get().etsAllPage);
     } catch (error) {
       handleAxiosError(error, "Failed to link subject");
     }
@@ -264,9 +390,27 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
       toast.success("Subject unlinked");
       set((s) => ({
         examTypeSubjects: s.examTypeSubjects.filter((e) => e.id !== id),
+        etsAll: s.etsAll.filter((e) => e.id !== id),
       }));
     } catch (error) {
       handleAxiosError(error, "Failed to unlink subject");
+    }
+  },
+
+  updateEts: async (id, data) => {
+    try {
+      await api.patch(`/admin/exam-revision/exam-type-subjects/${id}`, data);
+      set((s) => ({
+        etsAll: s.etsAll.map((e) => (e.id === id ? { ...e, ...data } : e)),
+        examTypeSubjects: s.examTypeSubjects.map((e) =>
+          e.id === id ? { ...e, ...data } : e,
+        ),
+      }));
+      toast.success(
+        data.isCompulsory ? "Marked as compulsory" : "Marked as optional",
+      );
+    } catch (error) {
+      handleAxiosError(error, "Failed to update link");
     }
   },
 
@@ -278,20 +422,29 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
   loadingTopics: false,
   selectedTopicSubjectId: "",
 
-  setTopicSubjectFilter: (subjectId) => set({ selectedTopicSubjectId: subjectId }),
+  setTopicSubjectFilter: (subjectId) =>
+    set({ selectedTopicSubjectId: subjectId }),
   setTopicsSearch: (s) => set({ topicsSearch: s }),
 
   fetchTopics: async (page = 1) => {
     set({ loadingTopics: true, topicsPage: page });
     try {
       const { selectedTopicSubjectId, topicsSearch } = get();
-      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
-      if (selectedTopicSubjectId) params.set("subjectId", selectedTopicSubjectId);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(LIMIT),
+      });
+      if (selectedTopicSubjectId)
+        params.set("subjectId", selectedTopicSubjectId);
       if (topicsSearch) params.set("search", topicsSearch);
       const res = await api.get<{ data: PaginatedState<ITopic> }>(
         `/admin/exam-revision/topics?${params}`,
       );
-      set({ topics: res.data.data.items, topicsTotal: res.data.data.total, topicsPage: res.data.data.page });
+      set({
+        topics: res.data.data.items,
+        topicsTotal: res.data.data.total,
+        topicsPage: res.data.data.page,
+      });
     } catch (error) {
       handleAxiosError(error, "Failed to load topics");
     } finally {
@@ -346,13 +499,21 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
     set({ loadingPassages: true, passagesPage: page });
     try {
       const { selectedPassageEtsId, passagesSearch } = get();
-      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
-      if (selectedPassageEtsId) params.set("examTypeSubjectId", selectedPassageEtsId);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(LIMIT),
+      });
+      if (selectedPassageEtsId)
+        params.set("examTypeSubjectId", selectedPassageEtsId);
       if (passagesSearch) params.set("search", passagesSearch);
       const res = await api.get<{ data: PaginatedState<IPassage> }>(
         `/admin/exam-revision/passages?${params}`,
       );
-      set({ passages: res.data.data.items, passagesTotal: res.data.data.total, passagesPage: res.data.data.page });
+      set({
+        passages: res.data.data.items,
+        passagesTotal: res.data.data.total,
+        passagesPage: res.data.data.page,
+      });
     } catch (error) {
       handleAxiosError(error, "Failed to load passages");
     } finally {
@@ -412,12 +573,17 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
     set({ loadingQuestions: true, questionsPage: page });
     try {
       const { questionFilters } = get();
-      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(LIMIT),
+      });
       if (questionFilters.examTypeSubjectId)
         params.set("examTypeSubjectId", questionFilters.examTypeSubjectId);
       if (questionFilters.type) params.set("type", questionFilters.type);
-      if (questionFilters.category) params.set("category", questionFilters.category);
-      if (questionFilters.difficulty) params.set("difficulty", questionFilters.difficulty);
+      if (questionFilters.category)
+        params.set("category", questionFilters.category);
+      if (questionFilters.difficulty)
+        params.set("difficulty", questionFilters.difficulty);
       if (questionFilters.search) params.set("search", questionFilters.search);
 
       const res = await api.get<{
@@ -432,6 +598,22 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
       handleAxiosError(error, "Failed to load questions");
     } finally {
       set({ loadingQuestions: false });
+    }
+  },
+
+  updateQuestion: async (id, data) => {
+    try {
+      await api.patch(`/admin/exam-revision/questions/${id}`, data);
+      set((s) => ({
+        questions: s.questions.map((q) =>
+          q.id === id ? { ...q, ...data } : q,
+        ),
+      }));
+      toast.success(
+        data.isActive ? "Question activated" : "Question deactivated",
+      );
+    } catch (error) {
+      handleAxiosError(error, "Failed to update question");
     }
   },
 

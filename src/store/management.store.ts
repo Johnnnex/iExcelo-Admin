@@ -11,6 +11,8 @@ interface ManagementState {
   roles: IAdminRole[];
   total: number;
   page: number;
+  rolesTotal: number;
+  rolesPage: number;
   loadingAdmins: boolean;
   loadingRoles: boolean;
   adminsSearch: string;
@@ -37,14 +39,22 @@ interface ManagementState {
   deactivateAdmin: (adminId: string) => Promise<void>;
   reactivateAdmin: (adminId: string) => Promise<void>;
 
-  fetchRoles: () => Promise<void>;
+  fetchRoles: (page?: number) => Promise<void>;
   createRole: (
-    data: { name: string; description?: string | null; modules: ModulePermissionsMap },
+    data: {
+      name: string;
+      description?: string | null;
+      modules: ModulePermissionsMap;
+    },
     onSuccess: () => void,
   ) => Promise<void>;
   updateRole: (
     id: string,
-    data: { name?: string; description?: string | null; modules?: ModulePermissionsMap },
+    data: {
+      name?: string;
+      description?: string | null;
+      modules?: ModulePermissionsMap;
+    },
     onSuccess: () => void,
   ) => Promise<void>;
   deleteRole: (id: string) => Promise<void>;
@@ -55,6 +65,8 @@ export const useManagementStore = create<ManagementState>()((set, get) => ({
   roles: [],
   total: 0,
   page: 1,
+  rolesTotal: 0,
+  rolesPage: 1,
   loadingAdmins: false,
   loadingRoles: false,
   adminsSearch: "",
@@ -136,13 +148,22 @@ export const useManagementStore = create<ManagementState>()((set, get) => ({
     }
   },
 
-  fetchRoles: async () => {
+  fetchRoles: async (page = 1) => {
     set({ loadingRoles: true });
     try {
       const { rolesSearch } = get();
-      const params = rolesSearch ? `?search=${encodeURIComponent(rolesSearch)}` : "";
-      const res = await api.get<{ data: IAdminRole[] }>(`/admin/roles${params}`);
-      set({ roles: res.data.data });
+      const params = new URLSearchParams({ page: String(page), limit: "50" });
+      if (rolesSearch) params.set("search", rolesSearch);
+      const res = await api.get<{
+        data:
+          | IAdminRole[]
+          | { items: IAdminRole[]; total: number; page: number };
+      }>(`/admin/roles?${params}`);
+      const raw = res.data.data;
+      const items = Array.isArray(raw) ? raw : (raw?.items ?? []);
+      const total = Array.isArray(raw) ? raw.length : (raw?.total ?? 0);
+      const pg = Array.isArray(raw) ? 1 : (raw?.page ?? 1);
+      set({ roles: items, rolesTotal: total, rolesPage: pg });
     } catch (error) {
       handleAxiosError(error, "Failed to load roles");
     } finally {
@@ -155,7 +176,7 @@ export const useManagementStore = create<ManagementState>()((set, get) => ({
       await api.post("/admin/roles", data);
       toast.success("Role created");
       onSuccess();
-      void get().fetchRoles();
+      void get().fetchRoles(1);
     } catch (error) {
       handleAxiosError(error, "Failed to create role");
     }
@@ -166,7 +187,7 @@ export const useManagementStore = create<ManagementState>()((set, get) => ({
       await api.patch(`/admin/roles/${id}`, data);
       toast.success("Role updated");
       onSuccess();
-      void get().fetchRoles();
+      void get().fetchRoles(get().rolesPage);
     } catch (error) {
       handleAxiosError(error, "Failed to update role");
     }
@@ -176,7 +197,7 @@ export const useManagementStore = create<ManagementState>()((set, get) => ({
     try {
       await api.delete(`/admin/roles/${id}`);
       toast.success("Role deleted");
-      set((s) => ({ roles: s.roles.filter((r) => r.id !== id) }));
+      void get().fetchRoles(get().rolesPage);
     } catch (error) {
       handleAxiosError(error, "Failed to delete role");
     }

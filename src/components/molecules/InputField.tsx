@@ -197,7 +197,9 @@ const CustomValueContainer: FC<
 
   if (!props.isMulti)
     return (
-      <components.ValueContainer {...props}>{children}</components.ValueContainer>
+      <components.ValueContainer {...props}>
+        {children}
+      </components.ValueContainer>
     );
 
   return (

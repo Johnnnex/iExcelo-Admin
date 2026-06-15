@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useAdminAffiliatesStore } from "@/src/store/affiliates.store";
 import { useAdminAuthStore } from "@/src/store/auth.store";
-import { AdminModule, IAdminAffiliateListItem, IAffiliatePayout } from "@/src/types";
+import {
+  AdminModule,
+  IAdminAffiliateListItem,
+  IAffiliatePayout,
+} from "@/src/types";
 import { DataTable, Column } from "@/src/components/molecules/DataTable";
 import { Modal } from "@/src/components/molecules/Modal";
 import { InputField } from "@/src/components/molecules/InputField";
@@ -51,7 +55,10 @@ function ConfirmModal({
           >
             {confirmLabel}
           </Button>
-          <Button onClick={onClose} className="flex-1 bg-[#F2F4F7]! text-[#344054]!">
+          <Button
+            onClick={onClose}
+            className="flex-1 bg-[#F2F4F7]! text-[#344054]!"
+          >
             Cancel
           </Button>
         </div>
@@ -107,7 +114,10 @@ function RejectPayoutModal({
           >
             Reject
           </Button>
-          <Button onClick={onClose} className="flex-1 bg-[#F2F4F7]! text-[#344054]!">
+          <Button
+            onClick={onClose}
+            className="flex-1 bg-[#F2F4F7]! text-[#344054]!"
+          >
             Cancel
           </Button>
         </div>
@@ -129,7 +139,9 @@ function PayoutsPanel({
 }) {
   const { payouts, payoutsTotal, loadingPayouts, fetchPayouts, approvePayout } =
     useAdminAffiliatesStore();
-  const [rejectPayout, setRejectPayout] = useState<IAffiliatePayout | null>(null);
+  const [rejectPayout, setRejectPayout] = useState<IAffiliatePayout | null>(
+    null,
+  );
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -160,22 +172,35 @@ function PayoutsPanel({
           <div>
             <p className="font-semibold text-[#101828]">Payouts — {name}</p>
             <p className="text-xs text-[#667085]">
-              Code: {affiliate.affiliateCode} · {payoutsTotal} payout{payoutsTotal !== 1 ? "s" : ""}
+              Code: {affiliate.affiliateCode} · {payoutsTotal} payout
+              {payoutsTotal !== 1 ? "s" : ""}
             </p>
           </div>
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-[#F2F4F7] transition-colors"
           >
-            <Icon icon="hugeicons:cancel-01" className="w-5 h-5 text-[#667085]" />
+            <Icon
+              icon="hugeicons:cancel-01"
+              className="w-5 h-5 text-[#667085]"
+            />
           </button>
         </div>
 
         <div className="grid grid-cols-3 gap-4 p-6 border-b border-[#F0F2F5]">
           {[
-            { label: "Total Earnings", value: `$${affiliate.totalEarnings.toFixed(2)}` },
-            { label: "Pending", value: `$${affiliate.pendingBalance.toFixed(2)}` },
-            { label: "Paid Out", value: `$${affiliate.totalPaidOut.toFixed(2)}` },
+            {
+              label: "Total Earnings",
+              value: `$${affiliate.totalEarnings.toFixed(2)}`,
+            },
+            {
+              label: "Pending",
+              value: `$${affiliate.pendingBalance.toFixed(2)}`,
+            },
+            {
+              label: "Paid Out",
+              value: `$${affiliate.totalPaidOut.toFixed(2)}`,
+            },
           ].map(({ label, value }) => (
             <div key={label} className="bg-[#F9FAFB] rounded-xl p-3">
               <p className="text-xs text-[#667085]">{label}</p>
@@ -188,12 +213,18 @@ function PayoutsPanel({
           {loadingPayouts ? (
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-16 rounded-xl bg-[#F0F2F5] animate-pulse" />
+                <div
+                  key={i}
+                  className="h-16 rounded-xl bg-[#F0F2F5] animate-pulse"
+                />
               ))}
             </div>
           ) : payouts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-center">
-              <Icon icon="hugeicons:invoice-01" className="w-10 h-10 text-[#D0D5DD] mb-3" />
+              <Icon
+                icon="hugeicons:invoice-01"
+                className="w-10 h-10 text-[#D0D5DD] mb-3"
+              />
               <p className="text-sm text-[#667085]">No payouts requested yet</p>
             </div>
           ) : (
@@ -209,7 +240,9 @@ function PayoutsPanel({
                         ${p.amount.toFixed(2)}
                       </span>
                       <StatusChip
-                        label={p.status.charAt(0).toUpperCase() + p.status.slice(1)}
+                        label={
+                          p.status.charAt(0).toUpperCase() + p.status.slice(1)
+                        }
                         variant={statusVariant(p.status)}
                       />
                     </div>
@@ -280,7 +313,8 @@ export default function Affiliates() {
   const { canWrite } = useAdminAuthStore();
 
   const [modal, setModal] = useState<ModalState>(null);
-  const [payoutsAffiliate, setPayoutsAffiliate] = useState<IAdminAffiliateListItem | null>(null);
+  const [payoutsAffiliate, setPayoutsAffiliate] =
+    useState<IAdminAffiliateListItem | null>(null);
   const canWriteAffiliates = canWrite(AdminModule.AFFILIATES);
 
   useEffect(() => {
@@ -324,14 +358,18 @@ export default function Affiliates() {
       key: "totalEarnings",
       header: "Earnings",
       render: (a) => (
-        <span className="text-sm text-[#344054]">${a.totalEarnings.toFixed(2)}</span>
+        <span className="text-sm text-[#344054]">
+          ${a.totalEarnings.toFixed(2)}
+        </span>
       ),
     },
     {
       key: "pendingBalance",
       header: "Pending",
       render: (a) => (
-        <span className="text-sm text-[#F3A218]">${a.pendingBalance.toFixed(2)}</span>
+        <span className="text-sm text-[#F3A218]">
+          ${a.pendingBalance.toFixed(2)}
+        </span>
       ),
     },
     {
@@ -360,7 +398,7 @@ export default function Affiliates() {
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
             onClick={() => setPayoutsAffiliate(a)}
-            className="text-xs px-2 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#EFF8FF] transition-colors"
+            className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors"
           >
             Payouts
           </button>
@@ -369,14 +407,14 @@ export default function Affiliates() {
               {a.user.isActive ? (
                 <button
                   onClick={() => setModal({ type: "deactivate", affiliate: a })}
-                  className="text-xs px-2 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
+                  className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
                 >
                   Deactivate
                 </button>
               ) : (
                 <button
                   onClick={() => setModal({ type: "reactivate", affiliate: a })}
-                  className="text-xs px-2 py-1 rounded-lg border border-[#099137] text-[#099137] hover:bg-[#F0FDF4] transition-colors"
+                  className="text-xs px-2.5 py-1 rounded-lg border border-[#099137] text-[#099137] hover:bg-[#F0FDF4] transition-colors"
                 >
                   Reactivate
                 </button>
@@ -424,8 +462,10 @@ export default function Affiliates() {
             endPage,
             totalRecords: affiliates.length,
             onPageChange: (p) => {
-              if (p < cursorPage && prevPage !== null) void fetchAffiliates(prevPage);
-              else if (p > cursorPage && hasMore) void fetchAffiliates(cursorPage + 1);
+              if (p < cursorPage && prevPage !== null)
+                void fetchAffiliates(prevPage);
+              else if (p > cursorPage && hasMore)
+                void fetchAffiliates(cursorPage + 1);
             },
           }}
         />
@@ -462,4 +502,3 @@ export default function Affiliates() {
     </div>
   );
 }
-

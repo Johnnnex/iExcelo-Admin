@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { Icon } from "@iconify/react";
@@ -355,7 +362,10 @@ function AdminsTab() {
     setConfirmAdmin(null);
   };
 
-  const roleOptions = roles.map((r) => ({ value: r.id, label: r.name }));
+  const roleOptions = (roles ?? []).map((r) => ({
+    value: r.id,
+    label: r.name,
+  }));
 
   const columns: Column<IAdminListItem>[] = [
     {
@@ -397,20 +407,19 @@ function AdminsTab() {
       header: "Actions",
       render: (row) =>
         !row.isSuper && canManage ? (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setDrawerAdmin(row)}
-              className="text-xs text-[#007FFF] hover:underline"
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors"
             >
               Permissions
             </button>
-            <span className="text-[#D0D5DD]">|</span>
             {row.isActive ? (
               <button
                 onClick={() =>
                   setConfirmAdmin({ admin: row, action: "deactivate" })
                 }
-                className="text-xs text-[#D42620] hover:underline"
+                className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
               >
                 Deactivate
               </button>
@@ -419,7 +428,7 @@ function AdminsTab() {
                 onClick={() =>
                   setConfirmAdmin({ admin: row, action: "reactivate" })
                 }
-                className="text-xs text-[#099137] hover:underline"
+                className="text-xs px-2.5 py-1 rounded-lg border border-[#099137] text-[#099137] hover:bg-[#F0FDF4] transition-colors"
               >
                 Reactivate
               </button>
@@ -458,6 +467,7 @@ function AdminsTab() {
           keyExtractor={(r) => r.id}
           emptyMessage="No admins found"
           shouldNotHaveBorder
+          noFooterOverlap
           searchProps={{
             value: adminsSearch,
             onChange: setAdminsSearch,
@@ -642,6 +652,8 @@ function RolesTab() {
     roles,
     loadingRoles,
     rolesSearch,
+    rolesTotal,
+    rolesPage,
     setRolesSearch,
     fetchRoles,
     createRole,
@@ -741,17 +753,16 @@ function RolesTab() {
       header: "Actions",
       render: (row) =>
         canManage ? (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => openEdit(row)}
-              className="text-xs text-[#007FFF] hover:underline"
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors"
             >
               Edit
             </button>
-            <span className="text-[#D0D5DD]">|</span>
             <button
               onClick={() => setDeleteTarget(row)}
-              className="text-xs text-[#D42620] hover:underline"
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
             >
               Delete
             </button>
@@ -762,11 +773,14 @@ function RolesTab() {
 
   return (
     <>
-      <div className="bg-white rounded-2xl" style={{ boxShadow: CARD_SHADOW }}>
+      <div
+        className="bg-white overflow-hidden rounded-2xl"
+        style={{ boxShadow: CARD_SHADOW }}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F2F5]">
           <div>
             <p className="font-semibold text-[#101828]">Role Templates</p>
-            <p className="text-sm text-[#667085]">{roles.length} templates</p>
+            <p className="text-sm text-[#667085]">{rolesTotal} templates</p>
           </div>
           {canManage && (
             <Button onClick={openCreate} className="flex items-center gap-2">
@@ -782,10 +796,21 @@ function RolesTab() {
           keyExtractor={(r) => r.id}
           emptyMessage="No role templates yet"
           shouldNotHaveBorder
+          noFooterOverlap
+          pagination
+          metaData={{
+            currentPage: (rolesPage - 1) * 50 + 1,
+            endPage:
+              rolesTotal > rolesPage * 50
+                ? rolesPage * 50 + 1
+                : (rolesPage - 1) * 50 + 1,
+            totalRecords: rolesTotal,
+            onPageChange: (skip) => fetchRoles(Math.floor(skip / 50) + 1),
+          }}
           searchProps={{
             value: rolesSearch,
             onChange: setRolesSearch,
-            onSearch: () => fetchRoles(),
+            onSearch: () => fetchRoles(1),
             placeholder: "Search role templates...",
           }}
         />

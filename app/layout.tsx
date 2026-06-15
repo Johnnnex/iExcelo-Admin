@@ -17,10 +17,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistSans.className} min-h-full bg-[#F9FAFB] antialiased`}>
-        <main>
-          {children}
-        </main>
+      <body
+        className={`${geistSans.variable} ${geistSans.className} min-h-full bg-[#F9FAFB] antialiased`}
+      >
+        <main>{children}</main>
         <Toaster
           toastOptions={{
             classNames: {

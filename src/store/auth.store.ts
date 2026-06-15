@@ -5,11 +5,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { api } from "@/src/lib/api";
 import { handleAxiosError } from "@/src/utils";
 import { toast } from "sonner";
-import {
-  IAdminUser,
-  IAdminProfile,
-  ModulePermissionsMap,
-} from "@/src/types";
+import { IAdminUser, IAdminProfile, ModulePermissionsMap } from "@/src/types";
 
 interface AdminAuthState {
   accessToken: string | null;
@@ -52,9 +48,14 @@ export const useAdminAuthStore = create<AdminAuthState>()(
               user: IAdminUser;
               adminProfile: IAdminProfile;
             };
-          }>("/api/admin/auth/login", { email, password }, {
-            baseURL: typeof window !== "undefined" ? window.location.origin : "",
-          });
+          }>(
+            "/api/admin/auth/login",
+            { email, password },
+            {
+              baseURL:
+                typeof window !== "undefined" ? window.location.origin : "",
+            },
+          );
 
           const { accessToken, user, adminProfile } = res.data.data;
 
@@ -69,7 +70,10 @@ export const useAdminAuthStore = create<AdminAuthState>()(
           toast.success("Welcome back!");
           onSuccess();
         } catch (error) {
-          handleAxiosError(error, "Login failed. Please check your credentials.");
+          handleAxiosError(
+            error,
+            "Login failed. Please check your credentials.",
+          );
         }
       },
 
@@ -102,13 +106,19 @@ export const useAdminAuthStore = create<AdminAuthState>()(
       canRead: (module) => {
         const { isSuper, modulePermissions } = get();
         if (isSuper) return true;
-        return modulePermissions[module as keyof typeof modulePermissions]?.canRead ?? false;
+        return (
+          modulePermissions[module as keyof typeof modulePermissions]
+            ?.canRead ?? false
+        );
       },
 
       canWrite: (module) => {
         const { isSuper, modulePermissions } = get();
         if (isSuper) return true;
-        return modulePermissions[module as keyof typeof modulePermissions]?.canWrite ?? false;
+        return (
+          modulePermissions[module as keyof typeof modulePermissions]
+            ?.canWrite ?? false
+        );
       },
     }),
     {

@@ -1,12 +1,22 @@
 import Image from "next/image";
 import Link from "next/link";
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default function AuthLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <>
       <header className="p-[3.75rem] absolute top-0 left-0">
         <Link href="/login">
-          <Image src="/svg/logo.svg" alt="iExcelo" width={88} height={34} priority />
+          <Image
+            src="/svg/logo.svg"
+            alt="iExcelo"
+            width={88}
+            height={34}
+            priority
+          />
         </Link>
       </header>
       <main

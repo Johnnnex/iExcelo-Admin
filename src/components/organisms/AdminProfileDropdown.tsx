@@ -12,7 +12,11 @@ interface AdminProfileDropdownProps {
   initials: string;
 }
 
-export function AdminProfileDropdown({ name, email, initials }: AdminProfileDropdownProps) {
+export function AdminProfileDropdown({
+  name,
+  email,
+  initials,
+}: AdminProfileDropdownProps) {
   const router = useRouter();
   const { logout, isSuper } = useAdminAuthStore();
   const [isOpen, setIsOpen] = useState(false);
@@ -21,7 +25,10 @@ export function AdminProfileDropdown({ name, email, initials }: AdminProfileDrop
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -47,15 +54,13 @@ export function AdminProfileDropdown({ name, email, initials }: AdminProfileDrop
       {isOpen && (
         <div className="absolute right-0 top-12 w-64 bg-white rounded-xl shadow-lg border border-gray-100 py-3 z-50">
           <div className="px-4 pb-3 border-b border-gray-100">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-semibold text-gray-900">{name}</p>
-              {isSuper && (
-                <span className="text-[0.65rem] px-2 py-0.5 rounded-full bg-[#E5E8F8] text-[#007FFF] font-semibold">
-                  Super Admin
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-gray-500 mt-0.5">{email}</p>
+            <p className="font-semibold text-gray-900">{name}</p>
+            {isSuper && (
+              <span className="inline-block text-[0.65rem] px-2 py-0.5 rounded-full bg-[#E5E8F8] text-[#007FFF] font-semibold mt-0.5">
+                Super Admin
+              </span>
+            )}
+            <p className="text-sm text-gray-500 mt-1">{email}</p>
           </div>
 
           <div className="py-2">
@@ -76,7 +81,11 @@ export function AdminProfileDropdown({ name, email, initials }: AdminProfileDrop
               disabled={isLoggingOut}
             >
               <Icon
-                icon={isLoggingOut ? "svg-spinners:ring-resize" : "hugeicons:logout-02"}
+                icon={
+                  isLoggingOut
+                    ? "svg-spinners:ring-resize"
+                    : "hugeicons:logout-02"
+                }
                 className="w-5 h-5"
               />
               <span className="text-sm">Log out</span>

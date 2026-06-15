@@ -49,7 +49,10 @@ function ConfirmModal({
           >
             {confirmLabel}
           </Button>
-          <Button onClick={onClose} className="flex-1 bg-[#F2F4F7]! text-[#344054]!">
+          <Button
+            onClick={onClose}
+            className="flex-1 bg-[#F2F4F7]! text-[#344054]!"
+          >
             Cancel
           </Button>
         </div>
@@ -127,7 +130,9 @@ export default function Sponsors() {
       key: "totalStudentsSponsored",
       header: "Students",
       render: (s) => (
-        <span className="text-sm text-[#344054]">{s.totalStudentsSponsored}</span>
+        <span className="text-sm text-[#344054]">
+          {s.totalStudentsSponsored}
+        </span>
       ),
     },
     {
@@ -135,7 +140,10 @@ export default function Sponsors() {
       header: "Total Donated",
       render: (s) => (
         <span className="text-sm text-[#344054]">
-          ${s.totalAmountDonated.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          $
+          {s.totalAmountDonated.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+          })}
         </span>
       ),
     },
@@ -167,21 +175,21 @@ export default function Sponsors() {
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
               onClick={() => setModal({ type: "reset-link", sponsor: s })}
-              className="text-xs px-2 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#EFF8FF] transition-colors whitespace-nowrap"
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#007FFF] text-[#007FFF] hover:bg-[#E5F0FF] transition-colors whitespace-nowrap"
             >
               Send Reset Link
             </button>
             {s.user.isActive ? (
               <button
                 onClick={() => setModal({ type: "deactivate", sponsor: s })}
-                className="text-xs px-2 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
+                className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
               >
                 Deactivate
               </button>
             ) : (
               <button
                 onClick={() => setModal({ type: "reactivate", sponsor: s })}
-                className="text-xs px-2 py-1 rounded-lg border border-[#099137] text-[#099137] hover:bg-[#F0FDF4] transition-colors"
+                className="text-xs px-2.5 py-1 rounded-lg border border-[#099137] text-[#099137] hover:bg-[#F0FDF4] transition-colors"
               >
                 Reactivate
               </button>
@@ -228,8 +236,10 @@ export default function Sponsors() {
             endPage,
             totalRecords: sponsors.length,
             onPageChange: (p) => {
-              if (p < cursorPage && prevPage !== null) void fetchSponsors(prevPage);
-              else if (p > cursorPage && hasMore) void fetchSponsors(cursorPage + 1);
+              if (p < cursorPage && prevPage !== null)
+                void fetchSponsors(prevPage);
+              else if (p > cursorPage && hasMore)
+                void fetchSponsors(cursorPage + 1);
             },
           }}
         />
@@ -267,4 +277,3 @@ export default function Sponsors() {
     </div>
   );
 }
-

@@ -26,7 +26,9 @@ export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNotifPanel]);
 
-  const name = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "";
+  const name = user
+    ? `${user.firstName || ""} ${user.lastName || ""}`.trim()
+    : "";
   const email = user?.email || "";
   const initials = user?.firstName ? user.firstName[0] : "A";
 
@@ -42,12 +44,19 @@ export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
       </div>
 
       <div className="flex items-center gap-4">
-        <div ref={bellRef} className="relative flex items-center justify-center">
+        <div
+          ref={bellRef}
+          className="relative flex items-center justify-center"
+        >
           <button
             onClick={() => setShowNotifPanel((v) => !v)}
             className="relative text-gray-500 hover:text-gray-700"
           >
-            <Icon icon="hugeicons:notification-01" className="w-6 h-6" color="#141B34" />
+            <Icon
+              icon="hugeicons:notification-01"
+              className="w-6 h-6"
+              color="#141B34"
+            />
           </button>
         </div>
 

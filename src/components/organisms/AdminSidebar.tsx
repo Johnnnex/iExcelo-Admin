@@ -18,29 +18,104 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { name: "Dashboard", href: "/dashboard", icon: "hugeicons:dashboard-square-02", module: null },
-  { name: "Admin Management", href: "/management", icon: "hugeicons:user-shield-01", module: AdminModule.ADMIN_MANAGEMENT },
+  {
+    name: "Dashboard",
+    href: "/dashboard",
+    icon: "hugeicons:dashboard-square-02",
+    module: null,
+  },
+  {
+    name: "Admin Management",
+    href: "/management",
+    icon: "hugeicons:user-shield-01",
+    module: AdminModule.ADMIN_MANAGEMENT,
+  },
   {
     name: "Exam Revision",
     href: "/exam-revision",
     icon: "hugeicons:book-open-02",
     module: AdminModule.EXAM_REVISION,
     children: [
-      { name: "Exam Types", href: "/exam-revision/exam-types", icon: "hugeicons:book-01", module: AdminModule.EXAM_REVISION },
-      { name: "Subjects", href: "/exam-revision/subjects", icon: "hugeicons:library", module: AdminModule.EXAM_REVISION },
-      { name: "Topics", href: "/exam-revision/topics", icon: "hugeicons:layers-01", module: AdminModule.EXAM_REVISION },
-      { name: "Passages", href: "/exam-revision/passages", icon: "hugeicons:paragraph", module: AdminModule.EXAM_REVISION },
-      { name: "Questions", href: "/exam-revision/questions", icon: "hugeicons:quill-write-01", module: AdminModule.EXAM_REVISION },
+      {
+        name: "Exam Types",
+        href: "/exam-revision/exam-types",
+        icon: "hugeicons:book-01",
+        module: AdminModule.EXAM_REVISION,
+      },
+      {
+        name: "Subjects",
+        href: "/exam-revision/subjects",
+        icon: "hugeicons:library",
+        module: AdminModule.EXAM_REVISION,
+      },
+      {
+        name: "Topics",
+        href: "/exam-revision/topics",
+        icon: "hugeicons:layers-01",
+        module: AdminModule.EXAM_REVISION,
+      },
+      {
+        name: "Passages",
+        href: "/exam-revision/passages",
+        icon: "hugeicons:paragraph",
+        module: AdminModule.EXAM_REVISION,
+      },
+      {
+        name: "Questions",
+        href: "/exam-revision/questions",
+        icon: "hugeicons:quill-write-01",
+        module: AdminModule.EXAM_REVISION,
+      },
     ],
   },
-  { name: "Students", href: "/students", icon: "hugeicons:student", module: AdminModule.STUDENTS },
-  { name: "Sponsors", href: "/sponsors", icon: "hugeicons:gift-01", module: AdminModule.SPONSORS },
-  { name: "Affiliates", href: "/affiliates", icon: "hugeicons:share-01", module: AdminModule.AFFILIATES },
-  { name: "Subscriptions", href: "/subscriptions", icon: "hugeicons:credit-card", module: AdminModule.SUBSCRIPTIONS },
-  { name: "Testimonials", href: "/testimonials", icon: "hugeicons:comment-add-01", module: AdminModule.TESTIMONIALS },
-  { name: "Bulk Emails", href: "/bulk-emails", icon: "hugeicons:mail-send-01", module: AdminModule.BULK_EMAILS },
-  { name: "Analytics", href: "/analytics", icon: "hugeicons:analytics-01", module: AdminModule.ANALYTICS },
-  { name: "Messages", href: "/messages", icon: "hugeicons:message-02", module: AdminModule.MESSAGES },
+  {
+    name: "Students",
+    href: "/students",
+    icon: "hugeicons:student",
+    module: AdminModule.STUDENTS,
+  },
+  {
+    name: "Sponsors",
+    href: "/sponsors",
+    icon: "hugeicons:money-bag-01",
+    module: AdminModule.SPONSORS,
+  },
+  {
+    name: "Affiliates",
+    href: "/affiliates",
+    icon: "hugeicons:share-01",
+    module: AdminModule.AFFILIATES,
+  },
+  {
+    name: "Subscriptions",
+    href: "/subscriptions",
+    icon: "hugeicons:credit-card",
+    module: AdminModule.SUBSCRIPTIONS,
+  },
+  {
+    name: "Testimonials",
+    href: "/testimonials",
+    icon: "hugeicons:comment-add-01",
+    module: AdminModule.TESTIMONIALS,
+  },
+  {
+    name: "Bulk Emails",
+    href: "/bulk-emails",
+    icon: "hugeicons:mail-send-01",
+    module: AdminModule.BULK_EMAILS,
+  },
+  {
+    name: "Analytics",
+    href: "/analytics",
+    icon: "hugeicons:analytics-01",
+    module: AdminModule.ANALYTICS,
+  },
+  {
+    name: "Messages",
+    href: "/messages",
+    icon: "hugeicons:message-02",
+    module: AdminModule.MESSAGES,
+  },
 ];
 
 function AccordionNavItem({
@@ -83,7 +158,10 @@ function AccordionNavItem({
         </div>
         <Icon
           icon="hugeicons:arrow-up-01"
-          className={cn("w-4 h-4 transition-transform duration-200", isOpen ? "" : "rotate-180")}
+          className={cn(
+            "w-4 h-4 transition-transform duration-200",
+            isOpen ? "" : "rotate-180",
+          )}
         />
       </button>
       {isOpen && (
@@ -91,7 +169,8 @@ function AccordionNavItem({
           {item.children?.map((child) => {
             const isChildActive =
               child.href === "/exam-revision"
-                ? pathname === child.href || pathname.startsWith(child.href + "/")
+                ? pathname === child.href ||
+                  pathname.startsWith(child.href + "/")
                 : pathname.startsWith(child.href);
             return (
               <Link
@@ -116,7 +195,13 @@ function AccordionNavItem({
   );
 }
 
-export function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function AdminSidebar({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
   const pathname = usePathname();
   const { canRead, logout } = useAdminAuthStore();
 
@@ -145,10 +230,19 @@ export function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         <div className="flex flex-col mb-[.75rem] p-[1.5rem_1.5rem_0_1.5rem] gap-[.5rem]">
           <div className="flex items-center justify-between">
             <div className="flex flex-col gap-[.5rem]">
-              <Image src="/svg/logo.svg" alt="iExcelo" width={88} height={34} priority />
+              <Image
+                src="/svg/logo.svg"
+                alt="iExcelo"
+                width={88}
+                height={34}
+                priority
+              />
               <p className="text-[.875rem] text-[#E5E8F8]">ADMIN PORTAL</p>
             </div>
-            <button onClick={onClose} className="text-white/80 hover:text-white md:hidden">
+            <button
+              onClick={onClose}
+              className="text-white/80 hover:text-white md:hidden"
+            >
               <Icon icon="hugeicons:cancel-01" className="w-6 h-6" />
             </button>
           </div>

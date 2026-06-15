@@ -181,8 +181,12 @@ const TipTap = forwardRef<HTMLDivElement, TipTapProps>(
         <div
           className="h-fit w-full px-[10px] overflow-y-auto"
           style={{
-            ...(richTextProps?.maxHeight ? { maxHeight: richTextProps.maxHeight } : {}),
-            ...(richTextProps?.minHeight ? { minHeight: richTextProps.minHeight } : {}),
+            ...(richTextProps?.maxHeight
+              ? { maxHeight: richTextProps.maxHeight }
+              : {}),
+            ...(richTextProps?.minHeight
+              ? { minHeight: richTextProps.minHeight }
+              : {}),
           }}
         >
           <EditorContent

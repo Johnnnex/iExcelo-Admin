@@ -27,7 +27,10 @@ export default function EditQuestionClient({ id }: { id: string }) {
           <div
             key={i}
             className="bg-white rounded-2xl p-6 h-40 animate-pulse"
-            style={{ boxShadow: "0 0 0 1px rgba(0,0,0,0.06), 0 5px 22px 0 rgba(0,0,0,0.04)" }}
+            style={{
+              boxShadow:
+                "0 0 0 1px rgba(0,0,0,0.06), 0 5px 22px 0 rgba(0,0,0,0.04)",
+            }}
           />
         ))}
       </div>
@@ -36,10 +39,19 @@ export default function EditQuestionClient({ id }: { id: string }) {
 
   if (!question) {
     return (
-      <div className="bg-white rounded-2xl p-8 text-center text-[#667085]"
-        style={{ boxShadow: "0 0 0 1px rgba(0,0,0,0.06), 0 5px 22px 0 rgba(0,0,0,0.04)" }}>
-        <p className="text-lg font-semibold text-[#344054]">Question not found</p>
-        <p className="text-sm mt-1">It may have been deleted or the ID is invalid.</p>
+      <div
+        className="bg-white rounded-2xl p-8 text-center text-[#667085]"
+        style={{
+          boxShadow:
+            "0 0 0 1px rgba(0,0,0,0.06), 0 5px 22px 0 rgba(0,0,0,0.04)",
+        }}
+      >
+        <p className="text-lg font-semibold text-[#344054]">
+          Question not found
+        </p>
+        <p className="text-sm mt-1">
+          It may have been deleted or the ID is invalid.
+        </p>
       </div>
     );
   }

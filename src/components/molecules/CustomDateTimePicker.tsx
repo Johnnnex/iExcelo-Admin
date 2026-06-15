@@ -199,7 +199,9 @@ const CustomDateTimePicker = memo(
             {...rest}
           />
           <Icon
-            icon={!!error ? "hugeicons:information-circle" : "hugeicons:calendar-01"}
+            icon={
+              !!error ? "hugeicons:information-circle" : "hugeicons:calendar-01"
+            }
             color={!!error ? "#F04438" : "#667085"}
             style={{
               position: "absolute",
@@ -285,7 +287,10 @@ const CustomDateTimePicker = memo(
                             >
                               {name}{" "}
                               {index === pendingDate.getMonth() && (
-                                <Icon icon="hugeicons:tick-01" color="#FF6642" />
+                                <Icon
+                                  icon="hugeicons:tick-01"
+                                  color="#FF6642"
+                                />
                               )}
                             </button>
                           ))}
@@ -359,7 +364,10 @@ const CustomDateTimePicker = memo(
                             >
                               {year}
                               {year === pendingDate.getFullYear() && (
-                                <Icon icon="hugeicons:tick-01" color="#FF6642" />
+                                <Icon
+                                  icon="hugeicons:tick-01"
+                                  color="#FF6642"
+                                />
                               )}
                             </button>
                           ))}

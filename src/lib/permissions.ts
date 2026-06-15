@@ -22,16 +22,16 @@ export interface PagePermission {
 // Keyed by route prefix. First matching prefix wins.
 // Dashboard has no entry — it's always accessible to any authenticated admin.
 export const PAGE_PERMISSION_MAP: Record<string, PagePermission> = {
-  "/management":    { module: AdminModule.ADMIN_MANAGEMENT, action: "read" },
-  "/exam-revision": { module: AdminModule.EXAM_REVISION,    action: "read" },
-  "/students":      { module: AdminModule.STUDENTS,         action: "read" },
-  "/sponsors":      { module: AdminModule.SPONSORS,         action: "read" },
-  "/affiliates":    { module: AdminModule.AFFILIATES,        action: "read" },
-  "/subscriptions": { module: AdminModule.SUBSCRIPTIONS,    action: "read" },
-  "/testimonials":  { module: AdminModule.TESTIMONIALS,     action: "read" },
-  "/bulk-emails":   { module: AdminModule.BULK_EMAILS,      action: "read" },
-  "/analytics":     { module: AdminModule.ANALYTICS,        action: "read" },
-  "/messages":      { module: AdminModule.MESSAGES,         action: "read" },
+  "/management": { module: AdminModule.ADMIN_MANAGEMENT, action: "read" },
+  "/exam-revision": { module: AdminModule.EXAM_REVISION, action: "read" },
+  "/students": { module: AdminModule.STUDENTS, action: "read" },
+  "/sponsors": { module: AdminModule.SPONSORS, action: "read" },
+  "/affiliates": { module: AdminModule.AFFILIATES, action: "read" },
+  "/subscriptions": { module: AdminModule.SUBSCRIPTIONS, action: "read" },
+  "/testimonials": { module: AdminModule.TESTIMONIALS, action: "read" },
+  "/bulk-emails": { module: AdminModule.BULK_EMAILS, action: "read" },
+  "/analytics": { module: AdminModule.ANALYTICS, action: "read" },
+  "/messages": { module: AdminModule.MESSAGES, action: "read" },
 };
 
 export function hasPermission(

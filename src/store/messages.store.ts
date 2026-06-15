@@ -21,7 +21,11 @@ interface MessagesState {
   fetchFlags: () => Promise<void>;
   reviewFlag: (id: string, adminNotes?: string) => Promise<void>;
   dismissFlag: (id: string, adminNotes?: string) => Promise<void>;
-  suspendUser: (userId: string, suspendedUntil: string, onSuccess?: () => void) => Promise<void>;
+  suspendUser: (
+    userId: string,
+    suspendedUntil: string,
+    onSuccess?: () => void,
+  ) => Promise<void>;
 }
 
 const LIMIT = 50;
