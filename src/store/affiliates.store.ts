@@ -13,16 +13,24 @@ interface AffiliatesState {
   hasMore: boolean;
   loadingAffiliates: boolean;
   searchTerm: string;
+  userTypeFilter: string;
 
   payouts: IAffiliatePayout[];
   payoutsTotal: number;
   loadingPayouts: boolean;
 
+  allPayouts: IAffiliatePayout[];
+  allPayoutsTotal: number;
+  allPayoutsPage: number;
+  loadingAllPayouts: boolean;
+
   setSearchTerm: (term: string) => void;
+  setUserTypeFilter: (type: string) => void;
   fetchAffiliates: (page?: number) => Promise<void>;
   deactivateAffiliate: (userId: string) => Promise<void>;
   reactivateAffiliate: (userId: string) => Promise<void>;
   fetchPayouts: (affiliateId: string, page?: number) => Promise<void>;
+  fetchAllPayouts: (page?: number, status?: string) => Promise<void>;
   approvePayout: (payoutId: string) => Promise<void>;
   rejectPayout: (payoutId: string, reason: string) => Promise<void>;
 }
@@ -35,22 +43,32 @@ export const useAdminAffiliatesStore = create<AffiliatesState>()(
     hasMore: false,
     loadingAffiliates: false,
     searchTerm: "",
+    userTypeFilter: "",
 
     payouts: [],
     payoutsTotal: 0,
     loadingPayouts: false,
 
+    allPayouts: [],
+    allPayoutsTotal: 0,
+    allPayoutsPage: 1,
+    loadingAllPayouts: false,
+
     setSearchTerm: (term) =>
       set({ searchTerm: term, cursors: [null], cursorPage: 1 }),
+
+    setUserTypeFilter: (type) =>
+      set({ userTypeFilter: type, cursors: [null], cursorPage: 1 }),
 
     fetchAffiliates: async (page = 1) => {
       set({ loadingAffiliates: true });
       try {
-        const { searchTerm, cursors } = get();
+        const { searchTerm, userTypeFilter, cursors } = get();
         const params = new URLSearchParams({ limit: "50" });
         const cursor = cursors[page - 1];
         if (cursor) params.set("cursor", cursor);
         if (searchTerm) params.set("search", searchTerm);
+        if (userTypeFilter) params.set("userType", userTypeFilter);
 
         const res = await api.get<{
           data: {
@@ -130,12 +148,35 @@ export const useAdminAffiliatesStore = create<AffiliatesState>()(
       }
     },
 
+    fetchAllPayouts: async (page = 1, status?: string) => {
+      set({ loadingAllPayouts: true });
+      try {
+        const params = new URLSearchParams({ page: String(page), limit: "20" });
+        if (status) params.set("status", status);
+        const res = await api.get<{
+          data: { items: IAffiliatePayout[]; total: number; page: number };
+        }>(`/admin/affiliates/payouts?${params.toString()}`);
+        set({
+          allPayouts: res.data.data.items,
+          allPayoutsTotal: res.data.data.total,
+          allPayoutsPage: res.data.data.page,
+        });
+      } catch (error) {
+        handleAxiosError(error, "Failed to load payouts");
+      } finally {
+        set({ loadingAllPayouts: false });
+      }
+    },
+
     approvePayout: async (payoutId) => {
       try {
         await api.patch(`/admin/affiliates/payouts/${payoutId}/approve`);
         toast.success("Payout approved");
         set((s) => ({
           payouts: s.payouts.map((p) =>
+            p.id === payoutId ? { ...p, status: "completed" as const } : p,
+          ),
+          allPayouts: s.allPayouts.map((p) =>
             p.id === payoutId ? { ...p, status: "completed" as const } : p,
           ),
         }));
@@ -152,6 +193,11 @@ export const useAdminAffiliatesStore = create<AffiliatesState>()(
         toast.success("Payout rejected");
         set((s) => ({
           payouts: s.payouts.map((p) =>
+            p.id === payoutId
+              ? { ...p, status: "failed" as const, failureReason: reason }
+              : p,
+          ),
+          allPayouts: s.allPayouts.map((p) =>
             p.id === payoutId
               ? { ...p, status: "failed" as const, failureReason: reason }
               : p,

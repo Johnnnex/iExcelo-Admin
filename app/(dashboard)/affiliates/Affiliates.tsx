@@ -290,7 +290,201 @@ function PayoutsPanel({
   );
 }
 
+// ─── All Withdrawals Tab ────────────────────────────────────────────────────────
+
+const PAYOUT_STATUSES = [
+  { label: "All", value: "" },
+  { label: "Pending", value: "pending" },
+  { label: "Processing", value: "processing" },
+  { label: "Completed", value: "completed" },
+  { label: "Failed", value: "failed" },
+];
+
+function WithdrawalsTab({ canWrite }: { canWrite: boolean }) {
+  const {
+    allPayouts,
+    allPayoutsTotal,
+    allPayoutsPage,
+    loadingAllPayouts,
+    fetchAllPayouts,
+    approvePayout,
+    rejectPayout: rejectPayoutStore,
+  } = useAdminAffiliatesStore();
+
+  const [statusFilter, setStatusFilter] = useState("");
+  const [rejectTarget, setRejectTarget] = useState<IAffiliatePayout | null>(
+    null,
+  );
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  const LIMIT = 20;
+  const totalPages = Math.ceil(allPayoutsTotal / LIMIT) || 1;
+
+  useEffect(() => {
+    void fetchAllPayouts(1, statusFilter || undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
+
+  const handleApprove = async (p: IAffiliatePayout) => {
+    setApprovingId(p.id);
+    await approvePayout(p.id);
+    setApprovingId(null);
+  };
+
+  const statusVariant = (status: IAffiliatePayout["status"]) => {
+    if (status === "completed") return "success";
+    if (status === "failed") return "error";
+    if (status === "processing") return "warning";
+    return "neutral";
+  };
+
+  const columns: Column<IAffiliatePayout>[] = [
+    {
+      key: "affiliate",
+      header: "Affiliate",
+      render: (p) =>
+        p.affiliate ? (
+          <div>
+            <p className="font-medium text-[#101828]">
+              {p.affiliate.user.firstName} {p.affiliate.user.lastName}
+            </p>
+            <p className="text-xs text-[#667085]">{p.affiliate.user.email}</p>
+          </div>
+        ) : (
+          <span className="text-xs text-[#667085]">—</span>
+        ),
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      render: (p) => (
+        <span className="font-semibold text-[#101828]">
+          ${p.amount.toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (p) => (
+        <StatusChip
+          label={p.status.charAt(0).toUpperCase() + p.status.slice(1)}
+          variant={statusVariant(p.status)}
+        />
+      ),
+    },
+    {
+      key: "paymentMethod",
+      header: "Method",
+      render: (p) => (
+        <span className="text-sm text-[#667085]">{p.paymentMethod ?? "—"}</span>
+      ),
+    },
+    {
+      key: "createdAt",
+      header: "Requested",
+      render: (p) => (
+        <span className="text-sm text-[#667085]">
+          {new Date(p.createdAt).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (p) => {
+        if (p.status !== "pending" || !canWrite) {
+          return p.failureReason ? (
+            <p className="text-xs text-[#D42620] max-w-[160px] truncate">
+              {p.failureReason}
+            </p>
+          ) : null;
+        }
+        return (
+          <div className="flex gap-2 shrink-0">
+            <button
+              disabled={approvingId === p.id}
+              onClick={() => void handleApprove(p)}
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#099137] text-[#099137] hover:bg-[#F0FDF4] disabled:opacity-50 transition-colors"
+            >
+              {approvingId === p.id ? "…" : "Approve"}
+            </button>
+            <button
+              onClick={() => setRejectTarget(p)}
+              className="text-xs px-2.5 py-1 rounded-lg border border-[#D42620] text-[#D42620] hover:bg-[#FEF3F2] transition-colors"
+            >
+              Reject
+            </button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <>
+      <div
+        className="bg-white overflow-hidden rounded-2xl"
+        style={{ boxShadow: CARD_SHADOW }}
+      >
+        <div className="px-6 py-4 border-b border-[#F0F2F5] flex items-center justify-between gap-4">
+          <p className="font-semibold text-[#101828]">
+            All Withdrawal Requests
+          </p>
+          <div className="flex gap-1.5">
+            {PAYOUT_STATUSES.map((s) => (
+              <button
+                key={s.value}
+                onClick={() => setStatusFilter(s.value)}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  statusFilter === s.value
+                    ? "bg-[#007FFF] border-[#007FFF] text-white"
+                    : "border-[#D0D5DD] text-[#667085] hover:bg-[#F9FAFB]"
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <DataTable
+          columns={columns}
+          data={allPayouts}
+          loading={loadingAllPayouts}
+          keyExtractor={(p) => p.id}
+          emptyMessage="No withdrawal requests."
+          shouldNotHaveBorder
+          pagination
+          metaData={{
+            currentPage: allPayoutsPage,
+            endPage: totalPages,
+            totalRecords: allPayoutsTotal,
+            onPageChange: (page) => {
+              void fetchAllPayouts(page, statusFilter || undefined);
+            },
+          }}
+        />
+      </div>
+
+      {rejectTarget && (
+        <RejectPayoutModal
+          payout={rejectTarget}
+          onClose={() => setRejectTarget(null)}
+        />
+      )}
+    </>
+  );
+}
+
 // ─── Main component ────────────────────────────────────────────────────────────
+
+const USER_TYPE_OPTIONS = [
+  { label: "All types", value: "" },
+  { label: "Student", value: "student" },
+  { label: "Sponsor", value: "sponsor" },
+  { label: "Affiliate", value: "affiliate" },
+];
 
 type ModalState =
   | { type: "deactivate"; affiliate: IAdminAffiliateListItem }
@@ -305,13 +499,18 @@ export default function Affiliates() {
     hasMore,
     loadingAffiliates,
     searchTerm,
+    userTypeFilter,
     setSearchTerm,
+    setUserTypeFilter,
     fetchAffiliates,
     deactivateAffiliate,
     reactivateAffiliate,
   } = useAdminAffiliatesStore();
   const { canWrite } = useAdminAuthStore();
 
+  const [activeTab, setActiveTab] = useState<"affiliates" | "withdrawals">(
+    "affiliates",
+  );
   const [modal, setModal] = useState<ModalState>(null);
   const [payoutsAffiliate, setPayoutsAffiliate] =
     useState<IAdminAffiliateListItem | null>(null);
@@ -344,6 +543,15 @@ export default function Affiliates() {
       render: (a) => (
         <span className="font-mono text-xs bg-[#F2F4F7] px-2 py-1 rounded-md text-[#344054]">
           {a.affiliateCode}
+        </span>
+      ),
+    },
+    {
+      key: "userType",
+      header: "Type",
+      render: (a) => (
+        <span className="text-xs capitalize px-2 py-0.5 rounded-full bg-[#F2F4F7] text-[#344054]">
+          {a.user.role}
         </span>
       ),
     },
@@ -435,41 +643,87 @@ export default function Affiliates() {
         </p>
       </div>
 
-      <div
-        className="bg-white overflow-hidden rounded-2xl"
-        style={{ boxShadow: CARD_SHADOW }}
-      >
-        <div className="px-6 py-4 border-b border-[#F0F2F5]">
-          <p className="font-semibold text-[#101828]">All Affiliates</p>
-        </div>
-
-        <DataTable
-          columns={columns}
-          data={affiliates}
-          loading={loadingAffiliates}
-          keyExtractor={(a) => a.id}
-          emptyMessage="No affiliates yet."
-          shouldNotHaveBorder
-          searchProps={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            onSearch: () => void fetchAffiliates(1),
-            placeholder: "Search by name, email or code...",
-          }}
-          pagination
-          metaData={{
-            currentPage: cursorPage,
-            endPage,
-            totalRecords: affiliates.length,
-            onPageChange: (p) => {
-              if (p < cursorPage && prevPage !== null)
-                void fetchAffiliates(prevPage);
-              else if (p > cursorPage && hasMore)
-                void fetchAffiliates(cursorPage + 1);
-            },
-          }}
-        />
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-[#F0F2F5]">
+        {(
+          [
+            { key: "affiliates", label: "Affiliates" },
+            { key: "withdrawals", label: "Withdrawals" },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === tab.key
+                ? "border-[#007FFF] text-[#007FFF]"
+                : "border-transparent text-[#667085] hover:text-[#344054]"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
+
+      {activeTab === "affiliates" && (
+        <div
+          className="bg-white overflow-hidden rounded-2xl"
+          style={{ boxShadow: CARD_SHADOW }}
+        >
+          <div className="px-6 py-4 border-b border-[#F0F2F5] flex items-center justify-between gap-4">
+            <p className="font-semibold text-[#101828]">All Affiliates</p>
+            <div className="flex gap-1.5">
+              {USER_TYPE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    setUserTypeFilter(opt.value);
+                    void fetchAffiliates(1);
+                  }}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                    userTypeFilter === opt.value
+                      ? "bg-[#007FFF] border-[#007FFF] text-white"
+                      : "border-[#D0D5DD] text-[#667085] hover:bg-[#F9FAFB]"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <DataTable
+            columns={columns}
+            data={affiliates}
+            loading={loadingAffiliates}
+            keyExtractor={(a) => a.id}
+            emptyMessage="No affiliates yet."
+            shouldNotHaveBorder
+            searchProps={{
+              value: searchTerm,
+              onChange: setSearchTerm,
+              onSearch: () => void fetchAffiliates(1),
+              placeholder: "Search by name, email or code...",
+            }}
+            pagination
+            metaData={{
+              currentPage: cursorPage,
+              endPage,
+              totalRecords: affiliates.length,
+              onPageChange: (p) => {
+                if (p < cursorPage && prevPage !== null)
+                  void fetchAffiliates(prevPage);
+                else if (p > cursorPage && hasMore)
+                  void fetchAffiliates(cursorPage + 1);
+              },
+            }}
+          />
+        </div>
+      )}
+
+      {activeTab === "withdrawals" && (
+        <WithdrawalsTab canWrite={canWriteAffiliates} />
+      )}
 
       {payoutsAffiliate && (
         <PayoutsPanel

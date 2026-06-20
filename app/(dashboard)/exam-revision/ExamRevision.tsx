@@ -1675,7 +1675,10 @@ function TopicsTab() {
                       type="rich-text"
                       label="Content"
                       value={field.value ?? ""}
-                      richTextProps={{ minHeight: "400px" }}
+                      richTextProps={{
+                        minHeight: "400px",
+                        image: { allowed: true, folder: "topics" },
+                      }}
                       onChange={(e) => field.onChange(e.target.value)}
                     />
                   )}
@@ -2095,7 +2098,10 @@ function PassagesTab() {
                       type="rich-text"
                       label="Content"
                       value={field.value ?? ""}
-                      richTextProps={{ minHeight: "400px" }}
+                      richTextProps={{
+                        minHeight: "400px",
+                        image: { allowed: true, folder: "passages" },
+                      }}
                       error={passageErrors.content?.message}
                       onChange={(e) => field.onChange(e.target.value)}
                     />

@@ -184,6 +184,7 @@ export interface IAdminAffiliateUser {
   email: string;
   firstName: string;
   lastName: string;
+  role: string;
   isActive: boolean;
   lastLogin: string | null;
 }
@@ -210,6 +211,11 @@ export interface IAffiliatePayout {
   processedAt: string | null;
   failureReason: string | null;
   createdAt: string;
+  affiliate?: {
+    id: string;
+    affiliateCode: string;
+    user: { firstName: string; lastName: string; email: string };
+  };
 }
 
 // ─── Subscriptions ────────────────────────────────────────────────────────────

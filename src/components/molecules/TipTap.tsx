@@ -8,6 +8,10 @@ import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import { Markdown } from "tiptap-markdown";
 import OrderedList from "@tiptap/extension-ordered-list";
+import Table from "@tiptap/extension-table";
+import TableCell from "@tiptap/extension-table-cell";
+import TableHeader from "@tiptap/extension-table-header";
+import TableRow from "@tiptap/extension-table-row";
 import { InlineMathMarkdown, BlockMathMarkdown } from "./MathExtensions";
 import Underline from "@tiptap/extension-underline";
 import { useEditor, EditorContent, Editor } from "@tiptap/react";
@@ -69,6 +73,22 @@ const getEditorMarkdown = (editor: Editor): string => {
   );
 };
 
+// Convert a base64 data URI to a File object
+function dataUriToFile(dataUri: string, filename: string): File | null {
+  try {
+    const [header, base64] = dataUri.split(",");
+    const mimeMatch = header.match(/data:([^;]+)/);
+    if (!mimeMatch) return null;
+    const mime = mimeMatch[1];
+    const bytes = atob(base64);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    return new File([arr], filename, { type: mime });
+  } catch {
+    return null;
+  }
+}
+
 const TipTap = forwardRef<HTMLDivElement, TipTapProps>(
   (
     {
@@ -94,6 +114,28 @@ const TipTap = forwardRef<HTMLDivElement, TipTapProps>(
       return true;
     };
 
+    // Handle paste from Word: extract base64-embedded images, upload, replace src
+    const handleWordPaste = async (
+      html: string,
+      editorInstance: Editor,
+    ): Promise<string> => {
+      if (!imageAllowed || !onImageUpload) return html;
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const imgs = Array.from(doc.querySelectorAll("img[src^='data:']"));
+      await Promise.all(
+        imgs.map(async (img, i) => {
+          const src = img.getAttribute("src") ?? "";
+          const file = dataUriToFile(src, `word-image-${i}.png`);
+          if (!file || !ALLOWED_TYPES.includes(file.type)) return;
+          const url = await onImageUpload(file);
+          if (url) img.setAttribute("src", url);
+          else img.remove();
+        }),
+      );
+      return doc.body.innerHTML;
+    };
+
     const editor = useEditor({
       extensions: [
         StarterKit.configure({
@@ -111,6 +153,10 @@ const TipTap = forwardRef<HTMLDivElement, TipTapProps>(
         Blockquote,
         CodeBlock,
         Image,
+        Table.configure({ resizable: false }),
+        TableRow,
+        TableHeader,
+        TableCell,
         Markdown,
         InlineMathMarkdown,
         BlockMathMarkdown,
@@ -133,12 +179,29 @@ const TipTap = forwardRef<HTMLDivElement, TipTapProps>(
           return true;
         },
         handlePaste: (_view, event) => {
-          if (!imageAllowed) return false;
+          // Priority 1: file from clipboard (direct screenshot/image paste)
           const file = event.clipboardData?.files?.[0];
-          if (!file || !ALLOWED_TYPES.includes(file.type)) return false;
-          event.preventDefault();
-          if (editor) handleImageFile(file, editor);
-          return true;
+          if (file && ALLOWED_TYPES.includes(file.type) && imageAllowed) {
+            event.preventDefault();
+            if (editor) handleImageFile(file, editor);
+            return true;
+          }
+
+          // Priority 2: HTML paste (Word, web) — handle base64 images + tables
+          const html = event.clipboardData?.getData("text/html");
+          if (html && editor) {
+            const hasBase64Images = /src=['"]data:image/.test(html);
+            const hasTables = /<table/i.test(html);
+            if ((hasBase64Images && imageAllowed) || hasTables) {
+              event.preventDefault();
+              handleWordPaste(html, editor).then((processed) => {
+                editor.commands.insertContent(processed);
+              });
+              return true;
+            }
+          }
+
+          return false;
         },
       },
       immediatelyRender: false,
