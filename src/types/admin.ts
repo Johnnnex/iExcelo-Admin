@@ -120,15 +120,15 @@ export interface ITopic {
 
 export interface IPassage {
   id: string;
-  examTypeSubjectId: string;
+  examTypeSubjectIds: string[];
   title: string;
   content: string;
   isActive: boolean;
-  examTypeSubject?: {
+  examTypeSubjects?: {
     id: string;
     examType?: { name: string };
     subject?: { name: string };
-  };
+  }[];
   createdAt: string;
 }
 

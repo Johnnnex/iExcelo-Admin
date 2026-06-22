@@ -52,6 +52,8 @@ const ALL_CURRENCIES = [
   { value: "EUR", label: "€ EUR — Euro" },
   { value: "CAD", label: "CA$ CAD — Canadian Dollar" },
   { value: "AUD", label: "A$ AUD — Australian Dollar" },
+  { value: "GHS", label: "₵ GHS — Ghanaian Cedi" },
+  { value: "GMD", label: "D GMD — Gambian Dalasi" },
 ];
 
 const CURRENCY_OPTIONS = [
@@ -61,6 +63,8 @@ const CURRENCY_OPTIONS = [
   { value: "EUR", label: "EUR — Euro" },
   { value: "CAD", label: "CAD — Canadian Dollar" },
   { value: "AUD", label: "AUD — Australian Dollar" },
+  { value: "GHS", label: "GHS — Ghanaian Cedi" },
+  { value: "GMD", label: "GMD — Gambian Dalasi" },
 ];
 
 const PROVIDER_OPTIONS = [

@@ -1774,7 +1774,7 @@ function PassagesTab() {
     formState: { errors: passageErrors, isSubmitting: passageSubmitting },
   } = useForm<PassageValues>({
     resolver: yupResolver(passageSchema),
-    defaultValues: { examTypeSubjectId: "", title: "", content: "" },
+    defaultValues: { examTypeSubjectIds: [], title: "", content: "" },
   });
 
   useEffect(() => {
@@ -1800,8 +1800,11 @@ function PassagesTab() {
       header: "Exam Type / Subject",
       render: (r) => (
         <span className="text-sm text-[#667085]">
-          {r.examTypeSubject?.examType?.name ?? "?"} /{" "}
-          {r.examTypeSubject?.subject?.name ?? "?"}
+          {r.examTypeSubjects?.length
+            ? r.examTypeSubjects
+                .map((e) => `${e.examType?.name ?? "?"} / ${e.subject?.name ?? "?"}`)
+                .join(", ")
+            : "—"}
         </span>
       ),
     },
@@ -1824,7 +1827,7 @@ function PassagesTab() {
             <button
               onClick={() => {
                 resetPassageForm({
-                  examTypeSubjectId: r.examTypeSubjectId ?? "",
+                  examTypeSubjectIds: r.examTypeSubjectIds ?? [],
                   title: r.title,
                   content: r.content ?? "",
                 });
@@ -1891,7 +1894,7 @@ function PassagesTab() {
             <Button
               onClick={() => {
                 resetPassageForm({
-                  examTypeSubjectId: "",
+                  examTypeSubjectIds: [],
                   title: "",
                   content: "",
                 });
@@ -2045,12 +2048,13 @@ function PassagesTab() {
                 <p className="font-semibold text-[#101828]">
                   {passageDrawer.passage ? "Edit Passage" : "New Passage"}
                 </p>
-                {passageDrawer.passage?.examTypeSubject && (
+                {passageDrawer.passage?.examTypeSubjects?.length ? (
                   <p className="text-sm text-[#667085]">
-                    {passageDrawer.passage.examTypeSubject.examType?.name} /{" "}
-                    {passageDrawer.passage.examTypeSubject.subject?.name}
+                    {passageDrawer.passage.examTypeSubjects
+                      .map((e) => `${e.examType?.name ?? "?"} / ${e.subject?.name ?? "?"}`)
+                      .join(" · ")}
                   </p>
-                )}
+                ) : null}
               </div>
               <button
                 onClick={() => setPassageDrawer({ open: false, passage: null })}
@@ -2066,13 +2070,13 @@ function PassagesTab() {
                   if (passageDrawer.passage) {
                     await updatePassage(
                       passageDrawer.passage.id,
-                      { title: data.title, content: data.content },
+                      { examTypeSubjectIds: data.examTypeSubjectIds, title: data.title, content: data.content },
                       () => setPassageDrawer({ open: false, passage: null }),
                     );
                   } else {
                     await createPassage(
                       {
-                        examTypeSubjectId: data.examTypeSubjectId,
+                        examTypeSubjectIds: data.examTypeSubjectIds,
                         title: data.title,
                         content: data.content,
                       },
@@ -2082,24 +2086,28 @@ function PassagesTab() {
                 })}
                 className="flex flex-col gap-5"
               >
-                {!passageDrawer.passage && (
-                  <Controller
-                    name="examTypeSubjectId"
-                    control={passageControl}
-                    render={({ field }) => (
-                      <InputField
-                        {...field}
-                        type="select"
-                        label="Exam Type / Subject"
-                        placeholder="Select..."
-                        value={field.value || null}
-                        selectOptions={etsOptions}
-                        error={passageErrors.examTypeSubjectId?.message}
-                        onChange={(e) => field.onChange(e.target.value)}
-                      />
-                    )}
-                  />
-                )}
+                <Controller
+                  name="examTypeSubjectIds"
+                  control={passageControl}
+                  render={({ field }) => (
+                    <InputField
+                      type="multi-select"
+                      label="Exam Type / Subject (select all that apply)"
+                      placeholder="Select one or more..."
+                      value={(field.value ?? []).join(",")}
+                      selectOptions={etsOptions}
+                      error={(passageErrors.examTypeSubjectIds as { message?: string })?.message}
+                      onChange={(e) =>
+                        field.onChange(
+                          (e.target.value as string)
+                            .split(",")
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                        )
+                      }
+                    />
+                  )}
+                />
                 <Controller
                   name="title"
                   control={passageControl}

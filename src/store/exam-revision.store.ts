@@ -125,12 +125,12 @@ interface ExamRevisionState {
   setPassagesSearch: (s: string) => void;
   fetchPassages: (page?: number) => Promise<void>;
   createPassage: (
-    data: { examTypeSubjectId: string; title: string; content: string },
+    data: { examTypeSubjectIds: string[]; title: string; content: string },
     onSuccess: () => void,
   ) => Promise<void>;
   updatePassage: (
     id: string,
-    data: Partial<{ title: string; content: string; isActive: boolean }>,
+    data: Partial<{ examTypeSubjectIds: string[]; title: string; content: string; isActive: boolean }>,
     onSuccess: () => void,
   ) => Promise<void>;
   deletePassage: (id: string) => Promise<void>;
