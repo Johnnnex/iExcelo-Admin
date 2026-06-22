@@ -88,6 +88,7 @@ export interface ISubject {
   description: string | null;
   totalQuestions: number;
   isActive: boolean;
+  isAlsoPractical: boolean;
   etsCount?: number;
   createdAt: string;
 }

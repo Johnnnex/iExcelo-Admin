@@ -23,6 +23,7 @@ export const subjectSchema = yup.object({
   name: yup.string().required("Name is required"),
   description: yup.string().nullable().default(null),
   isActive: yup.boolean().default(true),
+  isAlsoPractical: yup.boolean().default(false),
 });
 export type SubjectValues = yup.InferType<typeof subjectSchema>;
 

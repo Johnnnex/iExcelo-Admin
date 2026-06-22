@@ -586,7 +586,7 @@ function SubjectsTab() {
   }, [subTab]);
 
   const openCreate = () => {
-    reset({ name: "", description: "", isActive: true });
+    reset({ name: "", description: "", isActive: true, isAlsoPractical: false });
     setModal({ open: true, item: null });
   };
   const openEdit = (item: ISubject) => {
@@ -594,6 +594,7 @@ function SubjectsTab() {
       name: item.name,
       description: item.description ?? "",
       isActive: item.isActive,
+      isAlsoPractical: item.isAlsoPractical ?? false,
     });
     setModal({ open: true, item });
   };
@@ -642,6 +643,16 @@ function SubjectsTab() {
       render: (r) => (
         <span className="text-sm text-[#344054]">{r.totalQuestions}</span>
       ),
+    },
+    {
+      key: "isAlsoPractical",
+      header: "Practical",
+      render: (r) =>
+        r.isAlsoPractical ? (
+          <StatusChip variant="warning" label="Practical" />
+        ) : (
+          <span className="text-xs text-[#667085]">—</span>
+        ),
     },
     {
       key: "status",
@@ -1128,6 +1139,19 @@ function SubjectsTab() {
               )}
             />
           )}
+          <Controller
+            name="isAlsoPractical"
+            control={control}
+            render={({ field }) => (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <CheckBox
+                  value={!!field.value}
+                  onChange={() => field.onChange(!field.value)}
+                />
+                <span className="text-sm text-[#344054]">Also has practical component</span>
+              </label>
+            )}
+          />
           <div className="flex gap-3">
             <Button
               type="button"
