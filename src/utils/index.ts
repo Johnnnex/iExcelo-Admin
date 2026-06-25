@@ -31,6 +31,8 @@ export function stripMarkdownPreview(
     .replace(/\$([^$\n]+)\$/g, "[formula]")
     // Unescape Markdown escape sequences (Turndown escapes _ as \_ to prevent emphasis parsing)
     .replace(/\\([_*[\]()~>#+=|{}.!\-])/g, "$1")
+    // tiptap-markdown hard line breaks: backslash(es) immediately before newline → space
+    .replace(/\\+\n/g, " ")
     .replace(/\n+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

@@ -4,13 +4,14 @@ import { create } from "zustand";
 import { api } from "@/src/lib/api";
 import { handleAxiosError } from "@/src/utils";
 import { toast } from "sonner";
-import { IAdminCampaign, CampaignTargetAudience } from "@/src/types";
+import { IAdminCampaign, CampaignCategory } from "@/src/types";
 
 export interface CampaignFormData {
   name: string;
   subject: string;
   content: string;
-  targetAudience: CampaignTargetAudience;
+  category: CampaignCategory;
+  targetAudiences: string[];
 }
 
 interface BulkEmailsState {

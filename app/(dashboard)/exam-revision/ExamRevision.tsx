@@ -1379,12 +1379,13 @@ function TopicsTab() {
     },
     {
       key: "content",
-      header: "Has Content",
+      header: "Content Preview",
       render: (r) => (
-        <StatusChip
-          variant={r.content ? "success" : "neutral"}
-          label={r.content ? "Yes" : "No"}
-        />
+        <p className="max-w-xs text-sm text-[#344054] line-clamp-2">
+          {r.content
+            ? stripMarkdownPreview(r.content, 200, true)
+            : <span className="text-[#667085] italic text-xs">No content</span>}
+        </p>
       ),
     },
     {
@@ -1790,23 +1791,36 @@ function PassagesTab() {
   const columns: Column<IPassage>[] = [
     {
       key: "title",
-      header: "Title",
+      header: "Title / Content",
       render: (r) => (
-        <span className="font-medium text-[#101828]">{r.title}</span>
+        <div className="max-w-xs">
+          <span className="font-medium text-[#101828] block">{r.title}</span>
+          {r.content && (
+            <p className="text-sm text-[#344054] line-clamp-2 mt-0.5">
+              {stripMarkdownPreview(r.content, 200, true)}
+            </p>
+          )}
+        </div>
       ),
     },
     {
       key: "scope",
       header: "Exam Type / Subject",
-      render: (r) => (
-        <span className="text-sm text-[#667085]">
-          {r.examTypeSubjects?.length
-            ? r.examTypeSubjects
-                .map((e) => `${e.examType?.name ?? "?"} / ${e.subject?.name ?? "?"}`)
-                .join(", ")
-            : "—"}
-        </span>
-      ),
+      render: (r) => {
+        const text = r.examTypeSubjects?.length
+          ? r.examTypeSubjects
+              .map((e) => `${e.examType?.name ?? "?"} / ${e.subject?.name ?? "?"}`)
+              .join(", ")
+          : "—";
+        return (
+          <span
+            title={text}
+            className="text-sm text-[#667085] block max-w-[200px] truncate"
+          >
+            {text}
+          </span>
+        );
+      },
     },
     {
       key: "status",
@@ -2272,12 +2286,21 @@ function QuestionsTab() {
     {
       key: "scope",
       header: "Exam Type / Subject",
-      render: (r) => (
-        <span className="text-xs text-[#667085]">
-          {r.examTypeSubject?.examType?.name ?? "?"} /{" "}
-          {r.examTypeSubject?.subject?.name ?? "?"}
-        </span>
-      ),
+      render: (r) => {
+        const text = r.examTypeSubjects?.length
+          ? r.examTypeSubjects
+              .map((e) => `${e.examType?.name ?? "?"} / ${e.subject?.name ?? "?"}`)
+              .join(", ")
+          : "—";
+        return (
+          <span
+            className="max-w-[200px] truncate block text-xs text-[#667085]"
+            title={text}
+          >
+            {text}
+          </span>
+        );
+      },
     },
     {
       key: "type",

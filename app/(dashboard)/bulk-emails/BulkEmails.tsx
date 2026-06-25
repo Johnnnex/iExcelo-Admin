@@ -8,7 +8,7 @@ import { useAdminAuthStore } from "@/src/store/auth.store";
 import {
   AdminModule,
   IAdminCampaign,
-  CampaignTargetAudience,
+  CampaignCategory,
   CampaignStatus,
 } from "@/src/types";
 import { DataTable, Column } from "@/src/components/molecules/DataTable";
@@ -20,17 +20,51 @@ import { CARD_SHADOW } from "@/src/utils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const AUDIENCE_OPTIONS: { value: CampaignTargetAudience; label: string }[] = [
+const CATEGORY_META: Record<
+  CampaignCategory,
+  { label: string; color: string; bg: string; icon: string }
+> = {
+  newsletter: {
+    label: "Newsletter",
+    color: "#007FFF",
+    bg: "#EEF6FF",
+    icon: "hugeicons:news-01",
+  },
+  promotions: {
+    label: "Promotions",
+    color: "#F3A218",
+    bg: "#FFFBEB",
+    icon: "hugeicons:sale-tag-01",
+  },
+  product_updates: {
+    label: "Product Update",
+    color: "#099137",
+    bg: "#F0FDF4",
+    icon: "hugeicons:rocket-01",
+  },
+  security_alerts: {
+    label: "Security Alert",
+    color: "#D42620",
+    bg: "#FEF3F2",
+    icon: "hugeicons:shield-01",
+  },
+};
+
+const CATEGORY_OPTIONS: { value: CampaignCategory; label: string; description: string }[] = [
+  { value: "newsletter", label: "Newsletter", description: "Weekly digest, tips, and platform news" },
+  { value: "promotions", label: "Promotions & Offers", description: "Discounts, deals, and time-limited offers" },
+  { value: "product_updates", label: "Product Updates", description: "New features, improvements, and announcements" },
+  { value: "security_alerts", label: "Security Alerts", description: "General security notices and awareness emails" },
+];
+
+const AUDIENCE_OPTIONS: { value: string; label: string }[] = [
   { value: "all", label: "All Users" },
   { value: "students", label: "Students" },
   { value: "sponsors", label: "Sponsors" },
   { value: "affiliates", label: "Affiliates" },
 ];
 
-const STATUS_VARIANT: Record<
-  CampaignStatus,
-  "success" | "warning" | "neutral" | "error"
-> = {
+const STATUS_VARIANT: Record<CampaignStatus, "success" | "warning" | "neutral" | "error"> = {
   draft: "neutral",
   queued: "warning",
   sent: "success",
@@ -44,30 +78,80 @@ const STATUS_LABEL: Record<CampaignStatus, string> = {
   failed: "Failed",
 };
 
-// ─── Edit Modal (TipTap editor inline) ────────────────────────────────────────
+function audienceLabel(audiences: string[]): string {
+  if (!audiences?.length || audiences.includes("all")) return "All Users";
+  return audiences
+    .map((a) => AUDIENCE_OPTIONS.find((o) => o.value === a)?.label ?? a)
+    .join(", ");
+}
 
-function EditModal({
-  item,
-  onClose,
+// ─── Multi-audience picker (inline for edit modal) ────────────────────────────
+
+function AudiencePicker({
+  value,
+  onChange,
 }: {
-  item: IAdminCampaign;
-  onClose: () => void;
+  value: string[];
+  onChange: (next: string[]) => void;
 }) {
+  const toggle = (key: string) => {
+    if (key === "all") { onChange(["all"]); return; }
+    const withoutAll = value.filter((v) => v !== "all");
+    if (withoutAll.includes(key)) {
+      const next = withoutAll.filter((v) => v !== key);
+      onChange(next.length ? next : ["all"]);
+    } else {
+      onChange([...withoutAll, key]);
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {AUDIENCE_OPTIONS.map((o) => {
+        const isAll = o.value === "all";
+        const active = isAll ? value.includes("all") : value.includes(o.value) && !value.includes("all");
+        const checked = !isAll && !value.includes("all") ? value.includes(o.value) : undefined;
+
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => toggle(o.value)}
+            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all ${
+              active ? "border-[#007FFF] bg-[#EEF6FF]" : "border-[#E4E7EC] bg-white hover:border-[#B2CFFE]"
+            }`}
+          >
+            {!isAll && (
+              <div
+                className={`shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                  checked ? "bg-[#007FFF] border-[#007FFF]" : "bg-white border-[#D0D5DD]"
+                }`}
+              >
+                {checked && <Icon icon="hugeicons:tick-02" className="w-2.5 h-2.5 text-white" />}
+              </div>
+            )}
+            <span className={`text-sm font-medium ${active ? "text-[#007FFF]" : "text-[#344054]"}`}>
+              {o.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Edit Modal ───────────────────────────────────────────────────────────────
+
+function EditModal({ item, onClose }: { item: IAdminCampaign; onClose: () => void }) {
   const { updateCampaign, savingCampaign } = useAdminBulkEmailsStore();
   const [name, setName] = useState(item.name);
   const [subject, setSubject] = useState(item.subject);
-  const [audience, setAudience] = useState<CampaignTargetAudience>(
-    item.targetAudience,
-  );
+  const [category, setCategory] = useState<CampaignCategory>(item.category ?? "newsletter");
+  const [audiences, setAudiences] = useState<string[]>(item.targetAudiences ?? ["all"]);
   const [content, setContent] = useState(item.content);
 
   const handle = async () => {
-    const ok = await updateCampaign(item.id, {
-      name,
-      subject,
-      targetAudience: audience,
-      content,
-    });
+    const ok = await updateCampaign(item.id, { name, subject, category, targetAudiences: audiences, content });
     if (ok) onClose();
   };
 
@@ -75,45 +159,48 @@ function EditModal({
     <Modal isOpen onClose={onClose} className="rounded-2xl w-full max-w-2xl">
       <div className="flex items-center justify-between p-6 border-b border-[#E4E7EC]">
         <p className="font-semibold text-[#101828]">Edit Campaign</p>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-[#F2F4F7]"
-        >
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#F2F4F7]">
           <Icon icon="hugeicons:cancel-01" className="w-5 h-5 text-[#667085]" />
         </button>
       </div>
 
       <div className="p-6 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
-        <InputField
-          label="Campaign Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. January Newsletter"
-        />
-        <InputField
-          label="Email Subject"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          placeholder="e.g. Get ready for your exams!"
-        />
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-[#344054]">
-            Target Audience
-          </label>
-          <select
-            value={audience}
-            onChange={(e) =>
-              setAudience(e.target.value as CampaignTargetAudience)
-            }
-            className="px-3 py-2 border border-[#D0D5DD] rounded-lg text-sm outline-none focus:border-[#007FFF]"
-          >
-            {AUDIENCE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+        <InputField label="Campaign Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. January Newsletter" />
+        <InputField label="Email Subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Get ready for your exams!" />
+
+        {/* Category */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-[#344054]">Email Category</label>
+          <div className="grid grid-cols-2 gap-2">
+            {CATEGORY_OPTIONS.map((cat) => {
+              const meta = CATEGORY_META[cat.value];
+              const active = category === cat.value;
+              return (
+                <button
+                  key={cat.value}
+                  type="button"
+                  onClick={() => setCategory(cat.value)}
+                  style={active ? { borderColor: meta.color, backgroundColor: meta.bg } : undefined}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left transition-all ${
+                    active ? "" : "border-[#E4E7EC] bg-white hover:border-[#D0D5DD]"
+                  }`}
+                >
+                  <Icon icon={meta.icon} className="w-4 h-4 shrink-0" style={{ color: active ? meta.color : "#98A2B3" }} />
+                  <span className="text-sm font-medium" style={{ color: active ? meta.color : "#344054" }}>
+                    {cat.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
+
+        {/* Audiences */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-[#344054]">Target Audience</label>
+          <AudiencePicker value={audiences} onChange={setAudiences} />
+        </div>
+
         <InputField
           label="Email Body"
           type="rich-text"
@@ -124,17 +211,10 @@ function EditModal({
       </div>
 
       <div className="flex gap-3 p-6 border-t border-[#E4E7EC]">
-        <Button
-          onClick={handle}
-          loading={savingCampaign}
-          className="flex-1 bg-[#007FFF]! hover:bg-[#0066CC]! text-white!"
-        >
+        <Button onClick={handle} loading={savingCampaign} className="flex-1 bg-[#007FFF]! hover:bg-[#0066CC]! text-white!">
           Save Changes
         </Button>
-        <Button
-          onClick={onClose}
-          className="flex-1 bg-[#F2F4F7]! text-[#344054]! hover:bg-[#E4E7EC]!"
-        >
+        <Button onClick={onClose} className="flex-1 bg-[#F2F4F7]! text-[#344054]! hover:bg-[#E4E7EC]!">
           Cancel
         </Button>
       </div>
@@ -144,13 +224,7 @@ function EditModal({
 
 // ─── Delete Modal ──────────────────────────────────────────────────────────────
 
-function DeleteModal({
-  item,
-  onClose,
-}: {
-  item: IAdminCampaign;
-  onClose: () => void;
-}) {
+function DeleteModal({ item, onClose }: { item: IAdminCampaign; onClose: () => void }) {
   const { deleteCampaign } = useAdminBulkEmailsStore();
   const [loading, setLoading] = useState(false);
 
@@ -166,24 +240,13 @@ function DeleteModal({
       <div className="p-6">
         <p className="font-semibold text-[#101828] mb-1">Delete Campaign</p>
         <p className="text-sm text-[#667085] mb-5">
-          Delete{" "}
-          <span className="font-medium text-[#344054]">
-            &quot;{item.name}&quot;
-          </span>
-          ? This cannot be undone.
+          Delete <span className="font-medium text-[#344054]">&quot;{item.name}&quot;</span>? This cannot be undone.
         </p>
         <div className="flex gap-3">
-          <Button
-            onClick={handle}
-            loading={loading}
-            className="flex-1 bg-[#D42620]! hover:bg-[#b01e19]! text-white!"
-          >
+          <Button onClick={handle} loading={loading} className="flex-1 bg-[#D42620]! hover:bg-[#b01e19]! text-white!">
             Delete
           </Button>
-          <Button
-            onClick={onClose}
-            className="flex-1 bg-[#F2F4F7]! text-[#344054]! hover:bg-[#E4E7EC]!"
-          >
+          <Button onClick={onClose} className="flex-1 bg-[#F2F4F7]! text-[#344054]! hover:bg-[#E4E7EC]!">
             Cancel
           </Button>
         </div>
@@ -194,13 +257,7 @@ function DeleteModal({
 
 // ─── Send Modal ────────────────────────────────────────────────────────────────
 
-function SendModal({
-  item,
-  onClose,
-}: {
-  item: IAdminCampaign;
-  onClose: () => void;
-}) {
+function SendModal({ item, onClose }: { item: IAdminCampaign; onClose: () => void }) {
   const { sendCampaign } = useAdminBulkEmailsStore();
   const [loading, setLoading] = useState(false);
 
@@ -211,34 +268,38 @@ function SendModal({
     onClose();
   };
 
-  const audienceLabel =
-    AUDIENCE_OPTIONS.find((o) => o.value === item.targetAudience)?.label ??
-    item.targetAudience;
+  const catMeta = CATEGORY_META[item.category ?? "newsletter"];
+  const audience = audienceLabel(item.targetAudiences ?? []);
 
   return (
     <Modal isOpen onClose={onClose} className="rounded-2xl w-full max-w-sm">
       <div className="p-6">
         <p className="font-semibold text-[#101828] mb-1">Send Campaign</p>
-        <p className="text-sm text-[#667085] mb-5">
-          Send{" "}
-          <span className="font-medium text-[#344054]">
-            &quot;{item.name}&quot;
-          </span>{" "}
-          to <span className="font-medium text-[#344054]">{audienceLabel}</span>
-          ? This cannot be undone.
+        <p className="text-sm text-[#667085] mb-4">
+          Send <span className="font-medium text-[#344054]">&quot;{item.name}&quot;</span> to{" "}
+          <span className="font-medium text-[#344054]">{audience}</span>? This cannot be undone.
         </p>
-        <div className="flex gap-3">
-          <Button
-            onClick={handle}
-            loading={loading}
-            className="flex-1 bg-[#007FFF]! hover:bg-[#0066CC]! text-white!"
+
+        {/* Category + audience summary */}
+        <div className="flex flex-col gap-2 mb-5">
+          <div
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
+            style={{ backgroundColor: catMeta.bg, color: catMeta.color }}
           >
+            <Icon icon={catMeta.icon} className="w-3.5 h-3.5" />
+            {catMeta.label}
+          </div>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-[#F2F4F7] text-[#344054]">
+            <Icon icon="hugeicons:users-01" className="w-3.5 h-3.5" />
+            {audience}
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <Button onClick={handle} loading={loading} className="flex-1 bg-[#007FFF]! hover:bg-[#0066CC]! text-white!">
             Send Now
           </Button>
-          <Button
-            onClick={onClose}
-            className="flex-1 bg-[#F2F4F7]! text-[#344054]! hover:bg-[#E4E7EC]!"
-          >
+          <Button onClick={onClose} className="flex-1 bg-[#F2F4F7]! text-[#344054]! hover:bg-[#E4E7EC]!">
             Cancel
           </Button>
         </div>
@@ -259,8 +320,7 @@ type ModalState =
 
 export default function BulkEmails() {
   const router = useRouter();
-  const { campaigns, loadingCampaigns, fetchCampaigns } =
-    useAdminBulkEmailsStore();
+  const { campaigns, loadingCampaigns, fetchCampaigns } = useAdminBulkEmailsStore();
   const { canWrite } = useAdminAuthStore();
 
   const [modal, setModal] = useState<ModalState>(null);
@@ -295,23 +355,33 @@ export default function BulkEmails() {
       ),
     },
     {
-      key: "targetAudience",
+      key: "category",
+      header: "Category",
+      render: (c) => {
+        const meta = CATEGORY_META[c.category ?? "newsletter"];
+        return (
+          <div
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+            style={{ backgroundColor: meta.bg, color: meta.color }}
+          >
+            <Icon icon={meta.icon} className="w-3 h-3" />
+            {meta.label}
+          </div>
+        );
+      },
+    },
+    {
+      key: "targetAudiences",
       header: "Audience",
       render: (c) => (
-        <span className="text-sm text-[#344054]">
-          {AUDIENCE_OPTIONS.find((o) => o.value === c.targetAudience)?.label ??
-            c.targetAudience}
-        </span>
+        <span className="text-sm text-[#344054]">{audienceLabel(c.targetAudiences ?? [])}</span>
       ),
     },
     {
       key: "status",
       header: "Status",
       render: (c) => (
-        <StatusChip
-          label={STATUS_LABEL[c.status]}
-          variant={STATUS_VARIANT[c.status]}
-        />
+        <StatusChip label={STATUS_LABEL[c.status]} variant={STATUS_VARIANT[c.status]} />
       ),
     },
     {
@@ -336,9 +406,7 @@ export default function BulkEmails() {
       key: "createdAt",
       header: "Created",
       render: (c) => (
-        <span className="text-sm text-[#667085]">
-          {new Date(c.createdAt).toLocaleDateString()}
-        </span>
+        <span className="text-sm text-[#667085]">{new Date(c.createdAt).toLocaleDateString()}</span>
       ),
     },
     {
@@ -393,10 +461,7 @@ export default function BulkEmails() {
         )}
       </div>
 
-      <div
-        className="bg-white rounded-2xl flex flex-col"
-        style={{ boxShadow: CARD_SHADOW }}
-      >
+      <div className="bg-white rounded-2xl flex flex-col" style={{ boxShadow: CARD_SHADOW }}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F2F5]">
           <div>
             <p className="font-semibold text-[#101828]">All Campaigns</p>
@@ -435,15 +500,9 @@ export default function BulkEmails() {
         />
       </div>
 
-      {modal?.type === "edit" && (
-        <EditModal item={modal.item} onClose={() => setModal(null)} />
-      )}
-      {modal?.type === "delete" && (
-        <DeleteModal item={modal.item} onClose={() => setModal(null)} />
-      )}
-      {modal?.type === "send" && (
-        <SendModal item={modal.item} onClose={() => setModal(null)} />
-      )}
+      {modal?.type === "edit" && <EditModal item={modal.item} onClose={() => setModal(null)} />}
+      {modal?.type === "delete" && <DeleteModal item={modal.item} onClose={() => setModal(null)} />}
+      {modal?.type === "send" && <SendModal item={modal.item} onClose={() => setModal(null)} />}
     </div>
   );
 }

@@ -504,7 +504,7 @@ export const useExamRevisionStore = create<ExamRevisionState>()((set, get) => ({
         limit: String(LIMIT),
       });
       if (selectedPassageEtsId)
-        params.set("examTypeSubjectId", selectedPassageEtsId);
+        params.set("etsIds", selectedPassageEtsId);
       if (passagesSearch) params.set("search", passagesSearch);
       const res = await api.get<{ data: PaginatedState<IPassage> }>(
         `/admin/exam-revision/passages?${params}`,

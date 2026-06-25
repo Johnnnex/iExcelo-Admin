@@ -298,11 +298,17 @@ export interface IAdminTestimonial {
 
 // ─── Bulk Emails ──────────────────────────────────────────────────────────────
 
-export type CampaignTargetAudience =
-  | "all"
-  | "students"
-  | "sponsors"
-  | "affiliates";
+export type CampaignCategory =
+  | "newsletter"
+  | "promotions"
+  | "product_updates"
+  | "security_alerts";
+
+export type CampaignAudience = "all" | "students" | "sponsors" | "affiliates";
+
+/** @deprecated use CampaignAudience */
+export type CampaignTargetAudience = CampaignAudience;
+
 export type CampaignStatus = "draft" | "queued" | "sent" | "failed";
 
 export interface IAdminCampaign {
@@ -310,7 +316,8 @@ export interface IAdminCampaign {
   name: string;
   subject: string;
   content: string;
-  targetAudience: CampaignTargetAudience;
+  category: CampaignCategory;
+  targetAudiences: string[];
   status: CampaignStatus;
   recipientCount: number;
   sentAt: string | null;
@@ -355,7 +362,6 @@ export type QuestionOptionType = {
 
 export interface IQuestion {
   id: string;
-  examTypeSubjectId: string;
   questionText: string;
   type: string;
   category: string;
@@ -369,11 +375,11 @@ export interface IQuestion {
   isActive: boolean;
   timesAttempted: number;
   timesCorrect: number;
-  examTypeSubject?: {
+  examTypeSubjects?: {
     id: string;
     examType?: { id: string; name: string };
     subject?: { id: string; name: string };
-  };
+  }[];
   topic?: { id: string; name: string } | null;
   createdAt: string;
 }

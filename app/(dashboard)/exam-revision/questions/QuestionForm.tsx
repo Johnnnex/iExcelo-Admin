@@ -45,12 +45,9 @@ interface QuestionFormProps {
 
 export default function QuestionForm({ editQuestion }: QuestionFormProps) {
   const router = useRouter();
-  const { examTypes, fetchExamTypes } = useExamRevisionStore();
+  const { examTypes, fetchExamTypes, examTypeSubjects, fetchExamTypeSubjects } =
+    useExamRevisionStore();
 
-  const [allEts, setAllEts] = useState<IExamTypeSubject[]>([]);
-  const [resolvedEtsId, setResolvedEtsId] = useState(
-    editQuestion?.examTypeSubjectId ?? "",
-  );
   const [topics, setTopics] = useState<ITopic[]>([]);
   const [passages, setPassages] = useState<IPassage[]>([]);
   const [options, setOptions] = useState<OptionEntry[]>(() => {
@@ -76,8 +73,7 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
     ];
   });
   const [saving, setSaving] = useState(false);
-  const [loadingEts, setLoadingEts] = useState(false);
-  const etsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const passageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     control,
@@ -88,9 +84,8 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
   } = useForm<QuestionValues>({
     resolver: yupResolver(questionSchema),
     defaultValues: {
-      examTypeId: editQuestion?.examTypeSubject?.examType?.id ?? "",
-      subjectId: editQuestion?.examTypeSubject?.subject?.id ?? "",
-      examTypeSubjectId: editQuestion?.examTypeSubjectId ?? "",
+      examTypeSubjectIds:
+        editQuestion?.examTypeSubjects?.map((e) => e.id) ?? [],
       questionText: editQuestion?.questionText ?? "",
       type: editQuestion?.type ?? "multiple_choice",
       category: editQuestion?.category ?? "objectives",
@@ -109,85 +104,85 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
   });
 
   const questionType = watch("type");
-  const selectedExamTypeId = watch("examTypeId");
-  const selectedSubjectId = watch("subjectId");
+  const selectedEtsIds = watch("examTypeSubjectIds") ?? [];
 
-  // Load exam types on mount
+  // Load exam types + all ETS on mount
   useEffect(() => {
     if (examTypes.length === 0) fetchExamTypes();
+    if (examTypeSubjects.length === 0) fetchExamTypeSubjects();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load ETS when exam type changes (debounced 400ms)
+  // When selected ETS changes: load topics + passages
   useEffect(() => {
-    if (!selectedExamTypeId) {
-      setAllEts([]);
-      setLoadingEts(false);
+    if (selectedEtsIds.length === 0) {
+      setTopics([]);
+      setPassages([]);
       return;
     }
-    if (etsTimerRef.current) clearTimeout(etsTimerRef.current);
-    setLoadingEts(true);
-    etsTimerRef.current = setTimeout(() => {
-      api
-        .get<{ data: IExamTypeSubject[] }>(
-          `/admin/exam-revision/exam-type-subjects?examTypeId=${selectedExamTypeId}`,
-        )
-        .then((res) => setAllEts(res.data.data))
-        .catch(() => {})
-        .finally(() => setLoadingEts(false));
-    }, 400);
-    return () => {
-      if (etsTimerRef.current) clearTimeout(etsTimerRef.current);
-    };
-  }, [selectedExamTypeId]);
 
-  // Resolve ETS id when both examTypeId + subjectId are set
-  useEffect(() => {
-    if (!selectedExamTypeId || !selectedSubjectId) return;
-    const match = allEts.find(
-      (e) =>
-        e.examTypeId === selectedExamTypeId &&
-        e.subjectId === selectedSubjectId,
+    // Unique subjects from selected ETS
+    const selectedEts = examTypeSubjects.filter((e) =>
+      selectedEtsIds.includes(e.id),
     );
-    const etsId = match?.id ?? "";
-    setResolvedEtsId(etsId);
-    setValue("examTypeSubjectId", etsId);
-    // Load topics + passages for this ETS
-    if (etsId) {
+    const uniqueSubjectIds = [...new Set(selectedEts.map((e) => e.subjectId))];
+
+    // Topics: if single unique subject, load topics for it
+    if (uniqueSubjectIds.length === 1) {
       api
         .get<{ data: { items: ITopic[] } }>(
-          `/admin/exam-revision/topics?subjectId=${selectedSubjectId}&limit=200`,
+          `/admin/exam-revision/topics?subjectId=${uniqueSubjectIds[0]}&limit=200`,
         )
         .then((res) => setTopics(res.data.data.items ?? []))
         .catch(() => {});
+    } else {
+      setTopics([]);
+    }
+
+    // Passages: load for all selected ETS (comma-separated)
+    if (passageTimerRef.current) clearTimeout(passageTimerRef.current);
+    passageTimerRef.current = setTimeout(() => {
+      const etsParam = selectedEtsIds.join(",");
       api
         .get<{ data: { items: IPassage[] } }>(
-          `/admin/exam-revision/passages?examTypeSubjectId=${etsId}&limit=200`,
+          `/admin/exam-revision/passages?etsIds=${etsParam}&limit=200`,
         )
         .then((res) => setPassages(res.data.data.items ?? []))
         .catch(() => {});
+    }, 300);
+
+    return () => {
+      if (passageTimerRef.current) clearTimeout(passageTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEtsIds.join(","), examTypeSubjects.length]);
+
+  // Derive category options from the exam types of the selected ETS
+  const selectedEts = examTypeSubjects.filter((e) =>
+    selectedEtsIds.includes(e.id),
+  );
+  const examTypeIdsInSelection = [
+    ...new Set(selectedEts.map((e) => e.examTypeId)),
+  ];
+  const categoryOptions = (() => {
+    const allCategories = new Set<string>();
+    for (const et of examTypes) {
+      if (examTypeIdsInSelection.includes(et.id)) {
+        for (const c of et.supportedCategories ?? []) allCategories.add(c);
+      }
     }
-  }, [selectedExamTypeId, selectedSubjectId, allEts, setValue]);
+    const cats = allCategories.size > 0 ? [...allCategories] : ["objectives"];
+    return cats.map((c) => ({
+      value: c,
+      label: c.charAt(0).toUpperCase() + c.slice(1),
+    }));
+  })();
 
-  // Derive category options from selected exam type
-  const selectedExamType = examTypes.find((e) => e.id === selectedExamTypeId);
-  const categoryOptions = (
-    selectedExamType?.supportedCategories ?? ["objectives"]
-  ).map((c) => ({
-    value: c,
-    label: c.charAt(0).toUpperCase() + c.slice(1),
-  }));
-
-  // Subjects for selected exam type (derived from ETS list)
-  const subjectOptions = allEts.map((e) => ({
-    value: e.subjectId,
-    label: e.subject?.name ?? e.subjectId,
-  }));
-
-  const examTypeOptions = examTypes.map((e) => ({
+  const etsOptions = examTypeSubjects.map((e) => ({
     value: e.id,
-    label: e.name,
+    label: `${e.examType?.name ?? "?"} / ${e.subject?.name ?? "?"}`,
   }));
+
   const topicOptions = [
     { value: "", label: "None" },
     ...topics.map((t) => ({ value: t.id, label: t.name })),
@@ -243,14 +238,13 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
   // ─── Submit ────────────────────────────────────────────────────────────────
 
   const onSubmit = async (data: QuestionValues) => {
-    if (!data.examTypeSubjectId) {
-      toast.error("Select an exam type and subject that are linked");
+    if (!data.examTypeSubjectIds?.length) {
+      toast.error("Select at least one Exam Type / Subject");
       return;
     }
 
     setSaving(true);
     try {
-      // Build correctAnswer based on type
       let correctAnswer: unknown = null;
       if (data.type === "multiple_choice" || data.type === "true_false") {
         const correct = options.find((o) => o.isCorrect);
@@ -277,13 +271,13 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
       ].includes(data.type);
 
       const payload = {
-        examTypeSubjectId: data.examTypeSubjectId,
+        examTypeSubjectIds: data.examTypeSubjectIds,
         questionText: data.questionText,
         type: data.type,
         category: data.category,
         difficulty: data.difficulty,
         marks: data.marks ?? 1,
-        options: hasOptions ? options : data.type === "matching" ? null : null,
+        options: hasOptions ? options : null,
         correctAnswer,
         explanation: data.explanation || null,
         topicId: data.topicId || null,
@@ -353,63 +347,32 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
           <p className="text-sm font-semibold text-[#344054] uppercase tracking-wide">
             Scope
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Controller
-              name="examTypeId"
-              control={control}
-              render={({ field }) => (
-                <InputField
-                  {...field}
-                  type="select"
-                  label="Exam Type"
-                  placeholder="Select exam type..."
-                  value={field.value || null}
-                  selectOptions={examTypeOptions}
-                  error={errors.examTypeId?.message}
-                  onChange={(e) => {
-                    field.onChange(e.target.value);
-                    setValue("subjectId", "");
-                    setValue("examTypeSubjectId", "");
-                  }}
-                />
-              )}
-            />
-            <Controller
-              name="subjectId"
-              control={control}
-              render={({ field }) => (
-                <InputField
-                  {...field}
-                  type="select"
-                  label="Subject"
-                  placeholder={
-                    loadingEts
-                      ? "Loading subjects…"
-                      : selectedExamTypeId
-                        ? "Select subject..."
-                        : "Select exam type first"
-                  }
-                  value={field.value || null}
-                  selectOptions={subjectOptions}
-                  disabled={!selectedExamTypeId || loadingEts}
-                  error={errors.subjectId?.message}
-                  onChange={(e) => field.onChange(e.target.value)}
-                />
-              )}
-            />
-          </div>
-          {resolvedEtsId ? (
+          <Controller
+            name="examTypeSubjectIds"
+            control={control}
+            render={({ field }) => (
+              <InputField
+                type="multi-select"
+                label="Exam Type / Subject (select all that apply)"
+                placeholder="Select one or more..."
+                value={(field.value ?? []).join(",")}
+                selectOptions={etsOptions}
+                error={errors.examTypeSubjectIds?.message}
+                onChange={(e) => {
+                  const val = e.target.value as string;
+                  field.onChange(val ? val.split(",").filter(Boolean) : []);
+                  setValue("topicId", "");
+                  setValue("passageId", "");
+                }}
+              />
+            )}
+          />
+          {selectedEtsIds.length > 0 && (
             <p className="text-xs text-[#099137] flex items-center gap-1">
               <Icon icon="hugeicons:tick-double-01" width={14} />
-              Exam type–subject link resolved
+              {selectedEtsIds.length} scope{selectedEtsIds.length > 1 ? "s" : ""} selected
             </p>
-          ) : selectedExamTypeId && selectedSubjectId ? (
-            <p className="text-xs text-[#D42620] flex items-center gap-1">
-              <Icon icon="hugeicons:alert-circle" width={14} />
-              No link found for this combination — link them first in the
-              Subjects tab
-            </p>
-          ) : null}
+          )}
         </div>
 
         {/* Section: Question Details */}
@@ -493,7 +456,7 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
                 label="Question Text"
                 value={field.value ?? ""}
                 error={errors.questionText?.message}
-                richTextProps={{ maxHeight: "400px" }}
+                richTextProps={{ maxHeight: "400px", image: { allowed: true, folder: "questions" } }}
                 onChange={(e) => field.onChange(e.target.value)}
               />
             )}
@@ -690,7 +653,7 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
                 label="Explanation"
                 placeholder="Explain the correct answer (Markdown + LaTeX supported)..."
                 value={field.value ?? ""}
-                richTextProps={{ maxHeight: "400px" }}
+                richTextProps={{ maxHeight: "400px", image: { allowed: true, folder: "questions" } }}
                 onChange={(e) => field.onChange(e.target.value)}
               />
             )}
@@ -714,10 +677,14 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
                   {...field}
                   type="select"
                   label="Topic"
-                  placeholder="None"
+                  placeholder={
+                    topics.length === 0 && selectedEtsIds.length > 0
+                      ? "No topics available"
+                      : "None"
+                  }
                   value={field.value || null}
                   selectOptions={topicOptions}
-                  disabled={!resolvedEtsId}
+                  disabled={selectedEtsIds.length === 0 || topics.length === 0}
                   onChange={(e) => field.onChange(e.target.value)}
                 />
               )}
@@ -733,7 +700,7 @@ export default function QuestionForm({ editQuestion }: QuestionFormProps) {
                   placeholder="None"
                   value={field.value || null}
                   selectOptions={passageOptions}
-                  disabled={!resolvedEtsId}
+                  disabled={selectedEtsIds.length === 0}
                   onChange={(e) => field.onChange(e.target.value)}
                 />
               )}

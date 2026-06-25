@@ -45,11 +45,10 @@ export const passageSchema = yup.object({
 export type PassageValues = yup.InferType<typeof passageSchema>;
 
 export const questionSchema = yup.object({
-  examTypeId: yup.string().required("Exam type is required"),
-  subjectId: yup.string().required("Subject is required"),
-  examTypeSubjectId: yup
-    .string()
-    .required("Exam type + subject link is required"),
+  examTypeSubjectIds: yup
+    .array(yup.string().required())
+    .min(1, "Select at least one Exam Type / Subject")
+    .required(),
   questionText: yup.string().required("Question text is required"),
   type: yup.string().required("Question type is required"),
   category: yup.string().required("Category is required"),
